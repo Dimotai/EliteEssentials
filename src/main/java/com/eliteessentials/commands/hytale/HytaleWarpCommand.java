@@ -245,7 +245,7 @@ public class HytaleWarpCommand extends AbstractPlayerCommand {
         Location currentLoc = new Location(
             world.getName(),
             currentPos.getX(), currentPos.getY(), currentPos.getZ(),
-            rotation.y, rotation.x
+            rotation.y, 0f
         );
         
         World targetWorld = Universe.get().getWorld(loc.getWorld());

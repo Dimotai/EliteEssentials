@@ -1,6 +1,7 @@
 package com.eliteessentials.services;
 
 import com.eliteessentials.config.ConfigManager;
+import com.eliteessentials.integration.HyperPermsIntegration;
 import com.eliteessentials.integration.LuckPermsIntegration;
 import com.eliteessentials.model.Location;
 import com.eliteessentials.model.Warp;
@@ -210,8 +211,21 @@ public class WarpService {
                 }
             }
             
-            // Check group-based limits from config
-            Set<String> groups = new HashSet<>(LuckPermsIntegration.getGroups(playerId));
+            // Try HyperPerms as fallback
+            if (HyperPermsIntegration.isAvailable()) {
+                int hpLimit = HyperPermsIntegration.getHighestPermissionValue(playerId, Permissions.WARP_LIMIT_PREFIX);
+                if (hpLimit > 0) {
+                    return hpLimit;
+                }
+            }
+            
+            // Check group-based limits from config (try both LP and HP for group data)
+            Set<String> groups = new HashSet<>();
+            if (LuckPermsIntegration.isAvailable()) {
+                groups.addAll(LuckPermsIntegration.getGroups(playerId));
+            } else if (HyperPermsIntegration.isAvailable()) {
+                groups.addAll(HyperPermsIntegration.getGroups(playerId));
+            }
             int groupLimit = getHighestGroupLimit(groups, config.groupLimits);
             if (groupLimit != Integer.MIN_VALUE) {
                 return groupLimit;

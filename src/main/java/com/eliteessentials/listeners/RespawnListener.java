@@ -294,9 +294,14 @@ public class RespawnListener extends RefChangeSystem<EntityStore, DeathComponent
         if (!pattern.contains("*")) {
             return pattern.equalsIgnoreCase(worldName);
         }
-        // Convert glob pattern to regex: escape everything, then replace \* with .*
-        String regex = "(?i)" + java.util.regex.Pattern.quote(pattern).replace("\\*", ".*");
-        return worldName.matches(regex);
+        // Build regex by splitting on '*', quoting each literal segment, then joining with '.*'
+        String[] parts = pattern.split("\\*", -1);
+        StringBuilder sb = new StringBuilder("(?i)");
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) sb.append(".*");
+            sb.append(java.util.regex.Pattern.quote(parts[i]));
+        }
+        return worldName.matches(sb.toString());
     }
 
     /**

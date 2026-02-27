@@ -7,9 +7,12 @@ import com.eliteessentials.services.MessageService;
 import com.eliteessentials.services.NickService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
+import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -41,6 +44,10 @@ public class HytaleMsgCommand extends AbstractPlayerCommand {
         super("msg", "Send a private message to a player");
         this.messageService = messageService;
         this.configManager = configManager;
+        
+        // Register player arg for autocomplete suggestions (execution still uses raw input parsing)
+        withRequiredArg("player", "Target player", ArgTypes.STRING)
+            .suggest(PlayerSuggestionProvider.INSTANCE);
         
         // Allow extra arguments for multi-word messages
         setAllowsExtraArguments(true);
@@ -145,15 +152,9 @@ public class HytaleMsgCommand extends AbstractPlayerCommand {
     }
 
     /**
-     * Find a player by name (case-insensitive).
+     * Find a player by name (partial match, case-insensitive).
      */
     private PlayerRef findPlayer(String name) {
-        List<PlayerRef> players = Universe.get().getPlayers();
-        for (PlayerRef p : players) {
-            if (p.getUsername().equalsIgnoreCase(name)) {
-                return p;
-            }
-        }
-        return null;
+        return PlayerSuggestionProvider.findPlayer(name);
     }
 }

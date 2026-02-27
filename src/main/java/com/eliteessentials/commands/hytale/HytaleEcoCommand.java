@@ -7,6 +7,7 @@ import com.eliteessentials.permissions.PermissionService;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.PlayerService;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
@@ -175,24 +176,17 @@ public class HytaleEcoCommand extends CommandBase {
     }
     
     private UUID findPlayerId(String name) {
-        // Check online players first
-        for (PlayerRef p : Universe.get().getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(name)) {
-                return p.getUuid();
-            }
+        // Check online players first (partial match)
+        PlayerRef online = PlayerSuggestionProvider.findPlayer(name);
+        if (online != null) {
+            return online.getUuid();
         }
         // Check offline players in cache
         return playerService.getPlayerByName(name).map(d -> d.getUuid()).orElse(null);
     }
     
     private PlayerRef findPlayerRef(String name) {
-        // Check online players first
-        for (PlayerRef p : Universe.get().getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(name)) {
-                return p;
-            }
-        }
-        return null;
+        return PlayerSuggestionProvider.findPlayer(name);
     }
     
     /**
@@ -211,7 +205,8 @@ public class HytaleEcoCommand extends CommandBase {
             this.configManager = configManager;
             this.playerService = playerService;
             this.actionArg = withRequiredArg("action", "set, add, or remove", ArgTypes.STRING);
-            this.playerArg = withRequiredArg("player", "Player name (online or offline)", ArgTypes.STRING);
+            this.playerArg = withRequiredArg("player", "Player name (online or offline)", ArgTypes.STRING)
+                .suggest(PlayerSuggestionProvider.INSTANCE);
             this.amountArg = withRequiredArg("amount", "Amount of currency", ArgTypes.DOUBLE);
         }
         
@@ -308,21 +303,15 @@ public class HytaleEcoCommand extends CommandBase {
         }
         
         private UUID findPlayerId(String name) {
-            for (PlayerRef p : Universe.get().getPlayers()) {
-                if (p.getUsername().equalsIgnoreCase(name)) {
-                    return p.getUuid();
-                }
+            PlayerRef online = PlayerSuggestionProvider.findPlayer(name);
+            if (online != null) {
+                return online.getUuid();
             }
             return playerService.getPlayerByName(name).map(d -> d.getUuid()).orElse(null);
         }
         
         private PlayerRef findPlayerRef(String name) {
-            for (PlayerRef p : Universe.get().getPlayers()) {
-                if (p.getUsername().equalsIgnoreCase(name)) {
-                    return p;
-                }
-            }
-            return null;
+            return PlayerSuggestionProvider.findPlayer(name);
         }
     }
 }

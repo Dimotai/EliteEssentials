@@ -184,6 +184,7 @@ public class PluginConfig {
         messages.put("backNoLocation", "&cNo previous location to go back to.");
         messages.put("backTeleported", "&aTeleported to your previous location.");
         messages.put("backWarmup", "&eTeleporting back in &a{seconds} &eseconds... Stand still!");
+        messages.put("backWorldNotFound", "&cThe world &e{world} &cno longer exists. Location removed.");
         
         // ==================== SPAWN ====================
         messages.put("spawnNoSpawn", "&cNo spawn point set. An admin must use &e/setspawn &cfirst.");

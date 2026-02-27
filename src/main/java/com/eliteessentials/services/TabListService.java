@@ -2,6 +2,7 @@ package com.eliteessentials.services;
 
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.config.PluginConfig;
+import com.eliteessentials.integration.HyperPermsIntegration;
 import com.eliteessentials.integration.LuckPermsIntegration;
 import com.eliteessentials.services.NickService;
 import com.eliteessentials.util.MessageFormatter;
@@ -61,15 +62,20 @@ public class TabListService {
             }
         }
 
-        // Get LuckPerms prefix if enabled — strip color codes since tab list is plain text
+        // Get prefix from permission plugin if enabled — strip color codes since tab list is plain text
         String lpPrefix = "";
-        if (config.tabList.showLuckPermsPrefix && LuckPermsIntegration.isAvailable()) {
+        if (config.tabList.showLuckPermsPrefix) {
             try {
-                String rawPrefix = LuckPermsIntegration.getPrefix(playerId);
+                String rawPrefix = "";
+                if (LuckPermsIntegration.isAvailable()) {
+                    rawPrefix = LuckPermsIntegration.getPrefix(playerId);
+                } else if (HyperPermsIntegration.isAvailable()) {
+                    rawPrefix = HyperPermsIntegration.getPrefix(playerId);
+                }
                 lpPrefix = MessageFormatter.stripColorCodes(rawPrefix);
             } catch (Exception e) {
                 if (configManager.isDebugEnabled()) {
-                    logger.info("[TabList] Failed to get LuckPerms prefix for " + playerId + ": " + e.getMessage());
+                    logger.info("[TabList] Failed to get prefix for " + playerId + ": " + e.getMessage());
                 }
             }
         }
@@ -128,13 +134,56 @@ public class TabListService {
     }
 
     /**
-     * Called when a player joins. Sets their initial tab list display name
-     * if LuckPerms prefix or a nickname is active.
+     * Called when a player joins. Does two things:
+     * 1. Updates the joining player's own tab entry for everyone (if they have a nick/prefix).
+     * 2. Sends all other online players' nicked/prefixed entries to the new joiner,
+     *    so they see correct display names for players who were already online.
      */
     public void onPlayerJoin(UUID playerId) {
+        PluginConfig config = configManager.getConfig();
         boolean hasNick = nickService != null && nickService.hasNick(playerId);
-        if (configManager.getConfig().tabList.showLuckPermsPrefix || hasNick) {
+
+        // Update this player's entry for everyone already online
+        if (config.tabList.showLuckPermsPrefix || hasNick) {
             updatePlayer(playerId);
+        }
+
+        // Push all already-online nicked/prefixed players to the new joiner.
+        // Without this, the new joiner receives Hytale's native player list which
+        // uses real usernames, so they'd see real names instead of nicks.
+        if (nickService == null && !config.tabList.showLuckPermsPrefix) {
+            return;
+        }
+
+        Universe universe = Universe.get();
+        if (universe == null) return;
+
+        PlayerRef joiningPlayer = universe.getPlayer(playerId);
+        if (joiningPlayer == null || !joiningPlayer.isValid()) return;
+
+        for (PlayerRef online : universe.getPlayers()) {
+            UUID onlineId = online.getUuid();
+            // Skip the joining player themselves - already handled above
+            if (onlineId.equals(playerId)) continue;
+
+            boolean onlineHasNick = nickService != null && nickService.hasNick(onlineId);
+            if (!config.tabList.showLuckPermsPrefix && !onlineHasNick) continue;
+
+            try {
+                String displayName = buildDisplayName(onlineId, online.getUsername());
+                RemoveFromServerPlayerList removePacket = new RemoveFromServerPlayerList(new UUID[]{onlineId});
+                ServerPlayerListPlayer listPlayer = new ServerPlayerListPlayer(
+                    onlineId,
+                    displayName,
+                    online.getWorldUuid(),
+                    0
+                );
+                AddToServerPlayerList addPacket = new AddToServerPlayerList(new ServerPlayerListPlayer[]{listPlayer});
+                joiningPlayer.getPacketHandler().write(removePacket);
+                joiningPlayer.getPacketHandler().write(addPacket);
+            } catch (Exception e) {
+                // Skip players with packet issues
+            }
         }
     }
 }

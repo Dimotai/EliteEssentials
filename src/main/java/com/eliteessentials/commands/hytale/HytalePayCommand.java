@@ -7,6 +7,7 @@ import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.PlayerService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -45,7 +46,8 @@ public class HytalePayCommand extends AbstractPlayerCommand {
         this.configManager = configManager;
         this.playerService = playerService;
         
-        this.targetArg = withRequiredArg("player", "Player to pay (must be online)", ArgTypes.STRING);
+        this.targetArg = withRequiredArg("player", "Player to pay (must be online)", ArgTypes.STRING)
+            .suggest(PlayerSuggestionProvider.INSTANCE);
         this.amountArg = withRequiredArg("amount", "Amount to send", ArgTypes.DOUBLE);
     }
 
@@ -88,13 +90,7 @@ public class HytalePayCommand extends AbstractPlayerCommand {
         }
         
         // Find target player
-        PlayerRef targetPlayer = null;
-        for (PlayerRef p : Universe.get().getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(targetName)) {
-                targetPlayer = p;
-                break;
-            }
-        }
+        PlayerRef targetPlayer = PlayerSuggestionProvider.findPlayer(targetName);
         
         if (targetPlayer == null) {
             ctx.sendMessage(MessageFormatter.formatWithFallback(

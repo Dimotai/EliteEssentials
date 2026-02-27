@@ -5,11 +5,13 @@ import com.eliteessentials.gui.InventoryViewWindow;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.protocol.packets.interface_.Page;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.entity.entities.player.windows.Window;
@@ -36,6 +38,9 @@ public class HytaleInvseeCommand extends AbstractPlayerCommand {
     public HytaleInvseeCommand(ConfigManager configManager) {
         super(COMMAND_NAME, "View another player's inventory");
         this.configManager = configManager;
+        // Register player arg for autocomplete suggestions (execution uses raw input parsing)
+        withRequiredArg("player", "Target player", ArgTypes.STRING)
+            .suggest(PlayerSuggestionProvider.INSTANCE);
         this.setAllowsExtraArguments(true);
     }
 
@@ -132,14 +137,6 @@ public class HytaleInvseeCommand extends AbstractPlayerCommand {
     }
 
     private PlayerRef findPlayerByName(String playerName) {
-        List<PlayerRef> players = Universe.get().getPlayers();
-        for (PlayerRef ref : players) {
-            if (ref == null) continue;
-            String username = ref.getUsername();
-            if (username != null && username.equalsIgnoreCase(playerName)) {
-                return ref;
-            }
-        }
-        return null;
+        return PlayerSuggestionProvider.findPlayer(playerName);
     }
 }

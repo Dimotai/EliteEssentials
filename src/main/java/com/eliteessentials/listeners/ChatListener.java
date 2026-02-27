@@ -1,6 +1,7 @@
 package com.eliteessentials.listeners;
 
 import com.eliteessentials.config.ConfigManager;
+import com.eliteessentials.integration.HyperPermsIntegration;
 import com.eliteessentials.integration.LuckPermsIntegration;
 import com.eliteessentials.integration.PAPIIntegration;
 import com.eliteessentials.permissions.PermissionService;
@@ -66,6 +67,13 @@ public class ChatListener {
             logger.warning("LuckPerms detected! If chat formatting doesn't work:");
             logger.warning("1. LuckPerms may have its own chat formatting enabled");
             logger.warning("2. Check LuckPerms config and disable chat formatting there");
+            logger.warning("3. Or set 'advancedPermissions: false' to use simple mode");
+            logger.warning("=".repeat(60));
+        } else if (HyperPermsIntegration.isAvailable()) {
+            logger.warning("=".repeat(60));
+            logger.warning("HyperPerms detected! If chat formatting doesn't work:");
+            logger.warning("1. HyperPerms may have its own chat formatting enabled");
+            logger.warning("2. Check HyperPerms config and disable chat formatting there");
             logger.warning("3. Or set 'advancedPermissions: false' to use simple mode");
             logger.warning("=".repeat(60));
         }
@@ -305,12 +313,45 @@ public class ChatListener {
             java.util.List<String> groups = LuckPermsIntegration.getGroups(playerRef.getUuid());
             
             if (configManager.isDebugEnabled()) {
-                logger.info("Player " + playerRef.getUsername() + " has groups: " + groups);
+                logger.info("Player " + playerRef.getUsername() + " has groups (LuckPerms): " + groups);
             }
             
             // Find the highest priority group using case-insensitive matching
             for (String group : groups) {
                 // Find matching config key (case-insensitive)
+                String matchedConfigKey = findConfigKeyIgnoreCase(config.groupFormats, group);
+                
+                if (matchedConfigKey != null) {
+                    int priority = getGroupPriorityIgnoreCase(config.groupPriorities, group, matchedConfigKey);
+                    if (configManager.isDebugEnabled()) {
+                        logger.info("  Group '" + group + "' matched config key '" + matchedConfigKey + "' with priority: " + priority);
+                    }
+                    if (priority > highestPriority) {
+                        highestPriority = priority;
+                        highestPriorityGroup = matchedConfigKey;
+                    }
+                } else if (configManager.isDebugEnabled()) {
+                    logger.info("  Group '" + group + "' has no matching format in config");
+                }
+            }
+            
+            if (highestPriorityGroup != null) {
+                if (configManager.isDebugEnabled()) {
+                    logger.info("Selected group '" + highestPriorityGroup + "' with priority " + highestPriority);
+                }
+                return config.groupFormats.get(highestPriorityGroup);
+            }
+        }
+        
+        // Try HyperPerms as fallback for group resolution
+        if (highestPriorityGroup == null && HyperPermsIntegration.isAvailable()) {
+            java.util.List<String> groups = HyperPermsIntegration.getGroups(playerRef.getUuid());
+            
+            if (configManager.isDebugEnabled()) {
+                logger.info("Player " + playerRef.getUsername() + " has groups (HyperPerms): " + groups);
+            }
+            
+            for (String group : groups) {
                 String matchedConfigKey = findConfigKeyIgnoreCase(config.groupFormats, group);
                 
                 if (matchedConfigKey != null) {
@@ -414,9 +455,12 @@ public class ChatListener {
      * @return The format string with placeholders replaced
      */
     private String replaceLuckPermsPlaceholders(PlayerRef player, String format) {
-        // Only process if LuckPerms is available and format contains placeholders
-        if (!LuckPermsIntegration.isAvailable()) {
-            // Remove placeholders if LP not available
+        // Only process if LuckPerms or HyperPerms is available and format contains placeholders
+        boolean lpAvailable = LuckPermsIntegration.isAvailable();
+        boolean hpAvailable = HyperPermsIntegration.isAvailable();
+        
+        if (!lpAvailable && !hpAvailable) {
+            // Remove placeholders if no permission plugin available
             return format
                     .replace("%luckperms_prefix%", "")
                     .replace("%luckperms_suffix%", "")
@@ -433,9 +477,9 @@ public class ChatListener {
         boolean hasSuffix = format.contains("%luckperms_suffix%") || format.contains("{suffix}");
         boolean hasGroup = format.contains("%luckperms_primary_group%") || format.contains("{group}");
         
-        // Only fetch what we need
+        // Only fetch what we need — prefer LuckPerms, only fall back to HyperPerms if LP is not available
         if (hasPrefix) {
-            String prefix = LuckPermsIntegration.getPrefix(playerId);
+            String prefix = lpAvailable ? LuckPermsIntegration.getPrefix(playerId) : (hpAvailable ? HyperPermsIntegration.getPrefix(playerId) : "");
             format = format
                     .replace("%luckperms_prefix%", prefix)
                     .replace("{prefix}", prefix);
@@ -446,7 +490,7 @@ public class ChatListener {
         }
         
         if (hasSuffix) {
-            String suffix = LuckPermsIntegration.getSuffix(playerId);
+            String suffix = lpAvailable ? LuckPermsIntegration.getSuffix(playerId) : (hpAvailable ? HyperPermsIntegration.getSuffix(playerId) : "");
             format = format
                     .replace("%luckperms_suffix%", suffix)
                     .replace("{suffix}", suffix);
@@ -457,7 +501,7 @@ public class ChatListener {
         }
         
         if (hasGroup) {
-            String group = LuckPermsIntegration.getPrimaryGroupDisplay(playerId);
+            String group = lpAvailable ? LuckPermsIntegration.getPrimaryGroupDisplay(playerId) : (hpAvailable ? HyperPermsIntegration.getPrimaryGroupDisplay(playerId) : "");
             format = format
                     .replace("%luckperms_primary_group%", group)
                     .replace("{group}", group);

@@ -7,6 +7,7 @@ import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.PlayerService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -97,7 +98,8 @@ public class HytaleWalletCommand extends AbstractPlayerCommand {
             super(COMMAND_NAME);
             this.configManager = configManager;
             this.playerService = playerService;
-            this.targetArg = withRequiredArg("player", "Player name to view balance", ArgTypes.STRING);
+            this.targetArg = withRequiredArg("player", "Player name to view balance", ArgTypes.STRING)
+                .suggest(PlayerSuggestionProvider.INSTANCE);
         }
         
         @Override
@@ -160,7 +162,8 @@ public class HytaleWalletCommand extends AbstractPlayerCommand {
             this.configManager = configManager;
             this.playerService = playerService;
             this.actionArg = withRequiredArg("action", "set, add, or remove", ArgTypes.STRING);
-            this.targetArg = withRequiredArg("player", "Player name (online or offline)", ArgTypes.STRING);
+            this.targetArg = withRequiredArg("player", "Player name (online or offline)", ArgTypes.STRING)
+                .suggest(PlayerSuggestionProvider.INSTANCE);
             this.amountArg = withRequiredArg("amount", "Amount of currency", ArgTypes.DOUBLE);
         }
         
@@ -258,13 +261,13 @@ public class HytaleWalletCommand extends AbstractPlayerCommand {
     
     /**
      * Helper to find player UUID by name (online or offline).
+     * Uses NameMatching for partial name support.
      */
     private static UUID findPlayerId(String name, PlayerService playerService) {
-        // Check online players first
-        for (PlayerRef p : Universe.get().getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(name)) {
-                return p.getUuid();
-            }
+        // Check online players first (partial match)
+        PlayerRef online = PlayerSuggestionProvider.findPlayer(name);
+        if (online != null) {
+            return online.getUuid();
         }
         // Check offline players in cache
         return playerService.getPlayerByName(name).map(d -> d.getUuid()).orElse(null);
@@ -272,13 +275,9 @@ public class HytaleWalletCommand extends AbstractPlayerCommand {
     
     /**
      * Helper to find player reference by name (online only).
+     * Uses NameMatching for partial name support.
      */
     private static PlayerRef findPlayerRef(String name) {
-        for (PlayerRef p : Universe.get().getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(name)) {
-                return p;
-            }
-        }
-        return null;
+        return PlayerSuggestionProvider.findPlayer(name);
     }
 }

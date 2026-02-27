@@ -5,9 +5,11 @@ import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.MuteService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -24,6 +26,9 @@ public class HytaleUnmuteCommand extends AbstractPlayerCommand {
         super("unmute", "Unmute a player");
         this.muteService = muteService;
         this.configManager = configManager;
+        // Register player arg for autocomplete suggestions (execution uses raw input parsing)
+        withRequiredArg("player", "Target player", ArgTypes.STRING)
+            .suggest(PlayerSuggestionProvider.INSTANCE);
         setAllowsExtraArguments(true);
     }
 
@@ -45,13 +50,7 @@ public class HytaleUnmuteCommand extends AbstractPlayerCommand {
             return;
         }
         String targetName = parts[1];
-        PlayerRef target = null;
-        for (PlayerRef p : Universe.get().getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(targetName)) {
-                target = p;
-                break;
-            }
-        }
+        PlayerRef target = PlayerSuggestionProvider.findPlayer(targetName);
         if (target == null) {
             ctx.sendMessage(MessageFormatter.formatWithFallback(
                 configManager.getMessage("playerNotFound", "player", targetName), "#FF5555"));

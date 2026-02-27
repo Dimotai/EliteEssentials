@@ -4,6 +4,7 @@ import com.eliteessentials.commands.hytale.*;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.config.PluginConfig;
 import com.eliteessentials.events.StarterKitEvent;
+import com.eliteessentials.integration.HyperPermsIntegration;
 import com.eliteessentials.integration.LuckPermsIntegration;
 import com.eliteessentials.integration.PAPIIntegration;
 import com.eliteessentials.integration.VaultUnlockedIntegration;
@@ -287,6 +288,9 @@ public class EliteEssentials extends JavaPlugin {
         
         // Register permissions with LuckPerms for autocomplete/discovery
         LuckPermsIntegration.registerPermissions();
+
+        // Register permissions with HyperPerms for autocomplete/discovery
+        HyperPermsIntegration.registerPermissions();
 
         // Register PlaceholderAPI integration
         PAPIIntegration.register(this);

@@ -6,6 +6,7 @@ import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.NickService;
 import com.eliteessentials.services.TabListService;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.Message;
@@ -221,12 +222,7 @@ public class HytaleNickCommand extends AbstractPlayerCommand {
     }
 
     private PlayerRef findOnlinePlayer(String name) {
-        for (PlayerRef p : Universe.get().getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(name)) {
-                return p;
-            }
-        }
-        return null;
+        return PlayerSuggestionProvider.findPlayer(name);
     }
 
     private void refreshTabList(UUID playerId) {

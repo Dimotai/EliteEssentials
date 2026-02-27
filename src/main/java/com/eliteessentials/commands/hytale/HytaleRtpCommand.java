@@ -10,6 +10,7 @@ import com.eliteessentials.services.RtpService;
 import com.eliteessentials.services.WarmupService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.eliteessentials.util.TeleportUtil;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -314,7 +315,7 @@ public class HytaleRtpCommand extends CommandBase {
         Location currentLoc = new Location(
             world.getName(),
             currentPos.getX(), currentPos.getY(), currentPos.getZ(),
-            rotation.x, rotation.y
+            rotation.y, 0f  // yaw only, pitch=0 to prevent tilt
         );
 
         // Get effective warmup (skip for admin RTP)
@@ -719,7 +720,7 @@ public class HytaleRtpCommand extends CommandBase {
                 Location currentLoc = new Location(
                     currentWorld.getName(),
                     currentPos.getX(), currentPos.getY(), currentPos.getZ(),
-                    rotation.x, rotation.y
+                    rotation.y, 0f  // yaw only, pitch=0 to prevent tilt
                 );
                 backService.pushLocation(playerId, currentLoc);
             }
@@ -749,18 +750,10 @@ public class HytaleRtpCommand extends CommandBase {
     }
     
     /**
-     * Find an online player by name (case-insensitive).
+     * Find an online player by name (partial match supported).
      */
     private PlayerRef findOnlinePlayer(String name) {
-        Universe universe = Universe.get();
-        if (universe == null) return null;
-        
-        for (PlayerRef p : universe.getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(name)) {
-                return p;
-            }
-        }
-        return null;
+        return PlayerSuggestionProvider.findPlayer(name);
     }
     
     /**

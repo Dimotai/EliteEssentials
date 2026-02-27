@@ -1,11 +1,13 @@
 package com.eliteessentials.commands.hytale;
 
 import com.eliteessentials.config.ConfigManager;
+import com.eliteessentials.integration.HyperPermsIntegration;
 import com.eliteessentials.integration.LuckPermsIntegration;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.permissions.PermissionService;
 import com.eliteessentials.services.GroupChatService;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
@@ -141,8 +143,8 @@ public class HytaleSendMessageCommand extends CommandBase {
         String groupName = argParts[1];
         String message = argParts[2];
         
-        if (!LuckPermsIntegration.isAvailable()) {
-            ctx.sendMessage(Message.raw("LuckPerms is required for group messages.").color("#FF5555"));
+        if (!LuckPermsIntegration.isAvailable() && !HyperPermsIntegration.isAvailable()) {
+            ctx.sendMessage(Message.raw("LuckPerms or HyperPerms is required for group messages.").color("#FF5555"));
             return;
         }
         
@@ -153,7 +155,12 @@ public class HytaleSendMessageCommand extends CommandBase {
         if (universe != null) {
             for (PlayerRef player : universe.getPlayers()) {
                 if (player != null && player.isValid()) {
-                    List<String> playerGroups = LuckPermsIntegration.getGroups(player.getUuid());
+                    List<String> playerGroups;
+                    if (LuckPermsIntegration.isAvailable()) {
+                        playerGroups = LuckPermsIntegration.getGroups(player.getUuid());
+                    } else {
+                        playerGroups = HyperPermsIntegration.getGroups(player.getUuid());
+                    }
                     for (String group : playerGroups) {
                         if (group.equalsIgnoreCase(groupName)) {
                             recipients.add(player);
@@ -277,18 +284,10 @@ public class HytaleSendMessageCommand extends CommandBase {
     }
     
     /**
-     * Find an online player by name (case-insensitive).
+     * Find an online player by name (partial match supported).
      */
     private PlayerRef findOnlinePlayer(String name) {
-        Universe universe = Universe.get();
-        if (universe == null) return null;
-        
-        for (PlayerRef p : universe.getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(name)) {
-                return p;
-            }
-        }
-        return null;
+        return PlayerSuggestionProvider.findPlayer(name);
     }
     
     /**

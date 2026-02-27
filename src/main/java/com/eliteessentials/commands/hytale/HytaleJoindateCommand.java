@@ -6,6 +6,7 @@ import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.PlayerService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -86,7 +87,8 @@ public class HytaleJoindateCommand extends AbstractPlayerCommand {
             super(COMMAND_NAME);
             this.configManager = configManager;
             this.playerService = playerService;
-            this.targetArg = withRequiredArg("player", "Player name to look up", ArgTypes.STRING);
+            this.targetArg = withRequiredArg("player", "Player name to look up", ArgTypes.STRING)
+                .suggest(PlayerSuggestionProvider.INSTANCE);
         }
 
         @Override

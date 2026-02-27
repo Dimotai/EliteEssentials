@@ -105,7 +105,7 @@ public class HytaleSpawnCommand extends AbstractPlayerCommand {
         Location currentLoc = new Location(
             world.getName(),
             currentPos.getX(), currentPos.getY(), currentPos.getZ(),
-            currentRot.y, currentRot.x  // yaw=rotation.y, pitch=rotation.x
+            currentRot.y, 0f  // yaw only, pitch=0 to prevent tilt
         );
         
         // Get target world (may be different from current world if perWorld=false)

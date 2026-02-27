@@ -9,6 +9,7 @@ import com.eliteessentials.services.TpaService;
 import com.eliteessentials.services.VanishService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -72,21 +73,22 @@ public class HytaleTpaCommand extends AbstractPlayerCommand {
     }
     
     /**
-     * Find a player by name (case-insensitive).
+     * Find a player by name (partial match, case-insensitive).
+     * Respects vanish — vanished players are hidden from non-admins.
      */
     private PlayerRef findPlayer(String name, PlayerRef requester) {
         VanishService vanishService = EliteEssentials.getInstance().getVanishService();
         boolean canSeeVanished = canSeeVanishedPlayers(requester);
-        List<PlayerRef> players = Universe.get().getPlayers();
-        for (PlayerRef p : players) {
-            if (p.getUsername().equalsIgnoreCase(name)) {
-                if (vanishService != null && vanishService.isVanished(p.getUuid()) && !canSeeVanished) {
-                    return null;
-                }
-                return p;
-            }
+        
+        // First try NameMatching for partial name support
+        PlayerRef found = PlayerSuggestionProvider.findPlayer(name);
+        if (found == null) return null;
+        
+        // Check vanish visibility
+        if (vanishService != null && vanishService.isVanished(found.getUuid()) && !canSeeVanished) {
+            return null;
         }
-        return null;
+        return found;
     }
 
     private boolean canSeeVanishedPlayers(PlayerRef requester) {
@@ -137,7 +139,8 @@ public class HytaleTpaCommand extends AbstractPlayerCommand {
 
         TpaWithTargetCommand(TpaService tpaService) {
             super(COMMAND_NAME);
-            this.targetArg = withRequiredArg("player", "Target player", ArgTypes.STRING);
+            this.targetArg = withRequiredArg("player", "Target player", ArgTypes.STRING)
+                .suggest(PlayerSuggestionProvider.INSTANCE);
         }
 
         @Override

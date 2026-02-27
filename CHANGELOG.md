@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.1.16 - 2026-02-26
+
+### Fixed
+- Nicknames not showing in tab list for players who joined after the nick was set - `TabListService.onPlayerJoin` only pushed the joining player's own entry, so new joiners received Hytale's native player list with real usernames for everyone already online. Now also sends all nicked/prefixed player entries to the new joiner on connect.
+- `/back` teleporting players to wrong locations on death - when a back location referenced a world that no longer exists (e.g. temporary arena world), it silently fell back to the player's current world and used the old coordinates, sending them to seemingly random places. Now properly detects missing worlds, discards the stale location, and tells the player the world no longer exists.
+  - Same stale-world fallback bug also fixed in the `/back` alias handler (AliasService)
+  - Yaw/pitch swap in back location saves for `/rtp`, `/top`, `/tpaccept`, and `/tphere` - the Location constructor expects (yaw, pitch) but several commands were passing (pitch, yaw), storing the wrong facing direction
+  - All back location saves now hardcode pitch to 0 to prevent player tilt/lean on teleport - affects `/home`, `/warp`, `/spawn`, `/rtp`, `/top`, `/tpaccept`, `/tphere`, and warp admin
+
+## 1.1.15 - 2026-02-25
+
+
+### Added
+- Player name autocomplete for all commands that take a player argument
+  - Typing a partial name (e.g. `/tpa eli`) now shows fuzzy-matched suggestions of online players
+  - Works on: `/tpa`, `/tpahere`, `/tphere`, `/msg`, `/pay`, `/seen`, `/playtime`, `/joindate`, `/wallet`, `/eco`, `/mute`, `/unmute`, `/ban`, `/unban`, `/tempban`, `/freeze`, `/ignore`, `/unignore`, `/ipban`, `/unipban`, `/invsee`
+  - Uses the engine's built-in `fuzzySuggest` for ranked partial matching (up to 5 results)
+- HyperPerms integration - custom cooldowns, warmups, home limits, warp limits, and command costs now work with HyperPerms in addition to LuckPerms
+  - Uses the same permission node format as LuckPerms (e.g. `eliteessentials.command.home.limit.5`, `eliteessentials.command.misc.heal.cooldown.30`)
+  - No extra plugins or configuration required - if HyperPerms is detected, it is used automatically as a fallback when LuckPerms is not present
+  - Registers EliteEssentials permissions with HyperPerms' permission registry for web editor autocomplete. ** NOTE: You must first execute command before LP/Hyper see's it in WebEditor. **
+  - Registration uses the same retry pattern as LuckPerms to handle load order differences
+  - Affects: home limits, warp limits, all command cooldowns, all command warmups, chat group resolution, prefix/suffix display, tab list prefix, group message targeting
+  - `{prefix}`, `{suffix}`, and `{group}` placeholders in chat format now correctly resolve from HyperPerms group data via `ChatAPI` (which handles group inheritance and priority ordering) rather than the player-specific custom prefix override field
+  - TabList will also display HyperPerms prefix as well if enabled in config.
+
+### Fixed
+- `respawnExcludedWorlds` wildcard patterns (e.g. `arena*`) were never matching due to a regex bug in `worldMatchesPattern` - `Pattern.quote()` made the `*` literal and the subsequent replace never fired, so excluded arena worlds were still getting spawn-teleported
+
 ## 1.1.14 - 2026-02-22
 
 ### Added

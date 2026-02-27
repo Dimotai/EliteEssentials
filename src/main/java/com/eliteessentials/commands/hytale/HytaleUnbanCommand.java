@@ -5,9 +5,11 @@ import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.BanService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -25,6 +27,9 @@ public class HytaleUnbanCommand extends AbstractPlayerCommand {
         super("unban", "Unban a player");
         this.banService = banService;
         this.configManager = configManager;
+        // Register player arg for autocomplete suggestions (execution uses raw input parsing)
+        withRequiredArg("player", "Target player", ArgTypes.STRING)
+            .suggest(PlayerSuggestionProvider.INSTANCE);
         setAllowsExtraArguments(true);
     }
 
@@ -48,13 +53,7 @@ public class HytaleUnbanCommand extends AbstractPlayerCommand {
         String targetName = parts[1];
 
         // Try to find online player first
-        PlayerRef target = null;
-        for (PlayerRef p : Universe.get().getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(targetName)) {
-                target = p;
-                break;
-            }
-        }
+        PlayerRef target = PlayerSuggestionProvider.findPlayer(targetName);
 
         boolean unbanned;
         if (target != null) {

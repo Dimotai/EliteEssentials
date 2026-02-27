@@ -197,7 +197,7 @@ public class HomeSelectionPage extends InteractiveCustomUIPage<HomeSelectionPage
         Location currentLoc = new Location(
             world.getName(),
             currentPos.getX(), currentPos.getY(), currentPos.getZ(),
-            rotation.y, rotation.x  // yaw=rotation.y, pitch=rotation.x
+            rotation.y, 0f  // yaw only, pitch=0 to prevent tilt
         );
         
         // Get target world

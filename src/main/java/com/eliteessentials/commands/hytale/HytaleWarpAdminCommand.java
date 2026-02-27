@@ -253,7 +253,7 @@ public class HytaleWarpAdminCommand extends AbstractPlayerCommand {
         Location location = new Location(
             world.getName(),
             pos.getX(), pos.getY(), pos.getZ(),
-            rotation.y, rotation.x
+            rotation.y, 0f
         );
         
         boolean isUpdate = warpService.warpExists(warpName);

@@ -6,9 +6,11 @@ import com.eliteessentials.services.IgnoreService;
 import com.eliteessentials.storage.PlayerFileStorage;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -30,6 +32,9 @@ public class HytaleUnignoreCommand extends AbstractPlayerCommand {
         this.ignoreService = ignoreService;
         this.configManager = configManager;
         this.playerFileStorage = playerFileStorage;
+        // Register player arg for autocomplete suggestions (execution uses raw input parsing)
+        withRequiredArg("player", "Target player", ArgTypes.STRING)
+            .suggest(PlayerSuggestionProvider.INSTANCE);
         setAllowsExtraArguments(true);
     }
 
@@ -65,12 +70,10 @@ public class HytaleUnignoreCommand extends AbstractPlayerCommand {
         }
         String targetName = arg;
         UUID targetId = null;
-        for (PlayerRef p : Universe.get().getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(targetName)) {
-                targetId = p.getUuid();
-                targetName = p.getUsername();
-                break;
-            }
+        PlayerRef onlineTarget = PlayerSuggestionProvider.findPlayer(arg);
+        if (onlineTarget != null) {
+            targetId = onlineTarget.getUuid();
+            targetName = onlineTarget.getUsername();
         }
         if (targetId == null) {
             Optional<UUID> offlineId = playerFileStorage.getUuidByName(targetName);

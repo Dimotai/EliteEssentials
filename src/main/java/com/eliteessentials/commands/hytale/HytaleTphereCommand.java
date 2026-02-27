@@ -7,6 +7,8 @@ import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.BackService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
+import com.eliteessentials.util.TeleportUtil;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.math.vector.Vector3d;
@@ -18,7 +20,6 @@ import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
-import com.hypixel.hytale.server.core.modules.entity.teleport.Teleport;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -49,7 +50,8 @@ public class HytaleTphereCommand extends AbstractPlayerCommand {
         super(COMMAND_NAME, "Teleport a player to your location");
         this.backService = backService;
         // Use STRING instead of PLAYER_REF to show custom error message
-        this.targetArg = withRequiredArg("player", "Target player", ArgTypes.STRING);
+        this.targetArg = withRequiredArg("player", "Target player", ArgTypes.STRING)
+            .suggest(PlayerSuggestionProvider.INSTANCE);
     }
 
     @Override
@@ -83,43 +85,7 @@ public class HytaleTphereCommand extends AbstractPlayerCommand {
             return;
         }
         
-        // Get target's entity ref
-        Ref<EntityStore> targetRef = target.getReference();
-        if (targetRef == null || !targetRef.isValid()) {
-            ctx.sendMessage(MessageFormatter.formatWithFallback(
-                configManager.getMessage("playerNotFound", "player", targetName), "#FF5555"));
-            return;
-        }
-        
-        Store<EntityStore> targetStore = targetRef.getStore();
-        if (targetStore == null) {
-            ctx.sendMessage(MessageFormatter.formatWithFallback(
-                configManager.getMessage("playerNotFound", "player", targetName), "#FF5555"));
-            return;
-        }
-        
-        // Get target's current position for /back
-        TransformComponent targetTransform = (TransformComponent) targetStore.getComponent(targetRef, TransformComponent.getComponentType());
-        if (targetTransform != null) {
-            Vector3d targetPos = targetTransform.getPosition();
-            HeadRotation targetHeadRot = (HeadRotation) targetStore.getComponent(targetRef, HeadRotation.getComponentType());
-            Vector3f targetRot = targetHeadRot != null ? targetHeadRot.getRotation() : new Vector3f(0, 0, 0);
-            
-            // Get target's world
-            EntityStore targetEntityStore = targetStore.getExternalData();
-            World targetWorld = targetEntityStore != null ? targetEntityStore.getWorld() : world;
-            String worldName = targetWorld != null ? targetWorld.getName() : world.getName();
-            
-            // Save target's location for /back
-            Location targetLoc = new Location(
-                worldName,
-                targetPos.getX(), targetPos.getY(), targetPos.getZ(),
-                targetRot.x, targetRot.y
-            );
-            backService.pushLocation(target.getUuid(), targetLoc);
-        }
-        
-        // Get admin's current position and rotation
+        // Get admin's current position and rotation (safe - we're on admin's world thread)
         TransformComponent adminTransform = (TransformComponent) store.getComponent(ref, TransformComponent.getComponentType());
         HeadRotation adminHeadRotation = (HeadRotation) store.getComponent(ref, HeadRotation.getComponentType());
         
@@ -131,42 +97,65 @@ public class HytaleTphereCommand extends AbstractPlayerCommand {
         Vector3d adminPos = adminTransform.getPosition();
         Vector3f adminRot = adminHeadRotation.getRotation();
         
-        // Create teleport with admin's position and rotation (pitch=0 for upright landing)
-        Vector3f targetRotation = new Vector3f(0.0f, adminRot.y, 0.0f);
+        // Destination rotation: preserve admin yaw, pitch=0 to avoid player tilt
+        Vector3f destRotation = new Vector3f(0.0f, adminRot.y, 0.0f);
         
-        // CRITICAL: Execute teleport on target's world thread to avoid IllegalStateException
-        // Get target's world for thread-safe execution
-        EntityStore targetEntityStore = targetStore.getExternalData();
+        // CRITICAL: Target may be on a different world thread.
+        // All target store/ref access MUST happen on the target's world thread.
+        // We get the target's world via PlayerRef without touching the store.
+        Ref<EntityStore> targetRefForWorld = target.getReference();
+        if (targetRefForWorld == null || !targetRefForWorld.isValid()) {
+            ctx.sendMessage(MessageFormatter.formatWithFallback(
+                configManager.getMessage("playerNotFound", "player", targetName), "#FF5555"));
+            return;
+        }
+        Store<EntityStore> targetStoreForWorld = targetRefForWorld.getStore();
+        EntityStore targetEntityStore = targetStoreForWorld != null ? targetStoreForWorld.getExternalData() : null;
         World targetWorld = targetEntityStore != null ? targetEntityStore.getWorld() : world;
         final World finalTargetWorld = targetWorld != null ? targetWorld : world;
         
         finalTargetWorld.execute(() -> {
-            if (!targetRef.isValid()) return;
+            // Now on target's world thread - safe to access target's store/ref
+            Ref<EntityStore> freshTargetRef = target.getReference();
+            if (freshTargetRef == null || !freshTargetRef.isValid()) return;
             
-            Teleport teleport = new Teleport(world, adminPos, targetRotation);
-            // Use putComponent for creative mode compatibility
-            targetStore.putComponent(targetRef, Teleport.getComponentType(), teleport);
+            Store<EntityStore> freshTargetStore = freshTargetRef.getStore();
+            if (freshTargetStore == null) return;
             
-            // Send message to target
-            target.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("tphereTeleported", 
-                "player", player.getUsername()), "#FFFF55"));
+            // Save target's current location for /back
+            TransformComponent targetTransform = (TransformComponent) freshTargetStore.getComponent(freshTargetRef, TransformComponent.getComponentType());
+            if (targetTransform != null) {
+                Vector3d targetPos = targetTransform.getPosition();
+                HeadRotation targetHeadRot = (HeadRotation) freshTargetStore.getComponent(freshTargetRef, HeadRotation.getComponentType());
+                Vector3f targetRot = targetHeadRot != null ? targetHeadRot.getRotation() : new Vector3f(0, 0, 0);
+                EntityStore freshEntityStore = freshTargetStore.getExternalData();
+                World currentTargetWorld = freshEntityStore != null ? freshEntityStore.getWorld() : finalTargetWorld;
+                String worldName = currentTargetWorld != null ? currentTargetWorld.getName() : finalTargetWorld.getName();
+                Location targetLoc = new Location(
+                    worldName,
+                    targetPos.getX(), targetPos.getY(), targetPos.getZ(),
+                    targetRot.y, 0f  // yaw only, pitch=0 to prevent tilt
+                );
+                backService.pushLocation(target.getUuid(), targetLoc);
+            }
+            
+            // Teleport target to admin's location using TeleportUtil (handles Teleport.createForPlayer correctly)
+            TeleportUtil.safeTeleport(finalTargetWorld, world, adminPos, destRotation, target,
+                () -> target.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("tphereTeleported",
+                    "player", player.getUsername()), "#FFFF55")),
+                null
+            );
         });
         
-        // Send message to admin (we're on admin's world thread, so this is safe)
+        // Send confirmation to admin (safe - on admin's world thread)
         ctx.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("tphereSuccess", 
             "player", target.getUsername()), "#55FF55"));
     }
     
     /**
-     * Find a player by name (case-insensitive).
+     * Find a player by name (partial match, case-insensitive).
      */
     private PlayerRef findPlayer(String name) {
-        List<PlayerRef> players = Universe.get().getPlayers();
-        for (PlayerRef p : players) {
-            if (p.getUsername().equalsIgnoreCase(name)) {
-                return p;
-            }
-        }
-        return null;
+        return PlayerSuggestionProvider.findPlayer(name);
     }
 }

@@ -2,6 +2,7 @@ package com.eliteessentials.permissions;
 
 import com.eliteessentials.EliteEssentials;
 import com.eliteessentials.config.ConfigManager;
+import com.eliteessentials.integration.HyperPermsIntegration;
 import com.eliteessentials.integration.LuckPermsIntegration;
 import com.hypixel.hytale.server.core.command.system.CommandSender;
 import com.hypixel.hytale.server.core.permissions.PermissionsModule;
@@ -216,10 +217,8 @@ public class PermissionService {
      * 
      * Priority:
      * 1. Unlimited permission (returns Integer.MAX_VALUE)
-     * 2. LuckPerms permission-based limit (any value via eliteessentials.command.home.limit.<number>)
+     * 2. LuckPerms/HyperPerms permission-based limit (any value via eliteessentials.command.home.limit.<number>)
      * 3. Config default
-     * 
-     * Note: Custom limit values require LuckPerms. Without LuckPerms, only config default is used.
      */
     public int getMaxHomes(UUID playerId) {
         ConfigManager configManager = EliteEssentials.getInstance().getConfigManager();
@@ -232,14 +231,25 @@ public class PermissionService {
         
         // Try to get custom limit from LuckPerms (returns highest value found)
         if (LuckPermsIntegration.isAvailable()) {
-            // Check full permission format: eliteessentials.command.home.limit.<number>
             int lpLimit = getHighestPermissionValue(playerId, Permissions.HOME_LIMIT_PREFIX);
             if (lpLimit > 0) {
                 return lpLimit;
             }
             
-            // Check short permission format: homes.limit.<number>
             int shortLimit = getHighestPermissionValue(playerId, "homes.limit.");
+            if (shortLimit > 0) {
+                return shortLimit;
+            }
+        }
+        
+        // Try HyperPerms as fallback
+        if (HyperPermsIntegration.isAvailable()) {
+            int hpLimit = HyperPermsIntegration.getHighestPermissionValue(playerId, Permissions.HOME_LIMIT_PREFIX);
+            if (hpLimit > 0) {
+                return hpLimit;
+            }
+            
+            int shortLimit = HyperPermsIntegration.getHighestPermissionValue(playerId, "homes.limit.");
             if (shortLimit > 0) {
                 return shortLimit;
             }
@@ -372,10 +382,8 @@ public class PermissionService {
      * 
      * Priority:
      * 1. Bypass permission (returns 0)
-     * 2. LuckPerms permission-based cooldown (any value via eliteessentials.command.misc.heal.cooldown.<seconds>)
+     * 2. LuckPerms/HyperPerms permission-based cooldown (any value via eliteessentials.command.misc.heal.cooldown.<seconds>)
      * 3. Config default
-     * 
-     * Note: Custom cooldown values require LuckPerms. Without LuckPerms, only config default is used.
      */
     public int getHealCooldown(UUID playerId) {
         ConfigManager configManager = EliteEssentials.getInstance().getConfigManager();
@@ -391,6 +399,14 @@ public class PermissionService {
             int lpCooldown = LuckPermsIntegration.getInheritedPermissionValue(playerId, Permissions.HEAL_COOLDOWN_PREFIX);
             if (lpCooldown >= 0) {
                 return lpCooldown;
+            }
+        }
+        
+        // Try HyperPerms as fallback
+        if (HyperPermsIntegration.isAvailable()) {
+            int hpCooldown = HyperPermsIntegration.getInheritedPermissionValue(playerId, Permissions.HEAL_COOLDOWN_PREFIX);
+            if (hpCooldown >= 0) {
+                return hpCooldown;
             }
         }
         
@@ -463,6 +479,14 @@ public class PermissionService {
             }
         }
         
+        // Try HyperPerms as fallback
+        if (HyperPermsIntegration.isAvailable()) {
+            int hpCooldown = HyperPermsIntegration.getInheritedPermissionValue(playerId, cooldownPrefix);
+            if (hpCooldown >= 0) {
+                return hpCooldown;
+            }
+        }
+        
         // No specific cooldown permission found, return config default
         return defaultCooldown;
     }
@@ -502,6 +526,15 @@ public class PermissionService {
             int lpCooldown = LuckPermsIntegration.getInheritedPermissionValue(playerId, cooldownPrefix);
             if (lpCooldown >= 0) {
                 return lpCooldown;
+            }
+        }
+        
+        // Try HyperPerms as fallback
+        if (HyperPermsIntegration.isAvailable()) {
+            String cooldownPrefix = Permissions.TP_COOLDOWN_PREFIX + commandName + ".";
+            int hpCooldown = HyperPermsIntegration.getInheritedPermissionValue(playerId, cooldownPrefix);
+            if (hpCooldown >= 0) {
+                return hpCooldown;
             }
         }
         
@@ -565,6 +598,31 @@ public class PermissionService {
             }
         }
         
+        // Try HyperPerms as fallback
+        if (HyperPermsIntegration.isAvailable()) {
+            String warmupPrefix;
+            
+            switch (commandName.toLowerCase()) {
+                case "home":
+                    warmupPrefix = Permissions.HOME_WARMUP_PREFIX;
+                    break;
+                case "spawn":
+                    warmupPrefix = Permissions.SPAWN_WARMUP_PREFIX;
+                    break;
+                case "warp":
+                    warmupPrefix = Permissions.WARP_WARMUP_PREFIX;
+                    break;
+                default:
+                    warmupPrefix = Permissions.TP_WARMUP_PREFIX + commandName + ".";
+                    break;
+            }
+            
+            int hpWarmup = HyperPermsIntegration.getInheritedPermissionValue(playerId, warmupPrefix);
+            if (hpWarmup >= 0) {
+                return hpWarmup;
+            }
+        }
+        
         // No specific warmup permission found, return config default
         return defaultWarmup;
     }
@@ -573,31 +631,34 @@ public class PermissionService {
 
     /**
      * Get the cost for a command based on permissions.
-     * Checks permissions like eliteessentials.cost.home.5, eliteessentials.cost.rtp.100, etc.
-     * Returns the lowest cost found (most favorable to player), or the config default if no permission is set.
      * 
-     * Note: We check common cost values since Hytale's PermissionsModule doesn't expose
-     * a way to enumerate all permissions a user has. Server admins should use standard
-     * cost values (0, 1, 2, 5, 10, 15, 20, 25, 50, 100, 250, 500, 1000) for best compatibility.
+     * Priority:
+     * 1. LuckPerms/HyperPerms permission scan for eliteessentials.cost.<command>.<amount> (any value, lowest wins)
+     * 2. Config default
      * 
-     * @param playerId Player UUID
-     * @param commandName Command name (e.g., "home", "rtp", "warp", "spawn", "back", "tpa", "tpahere", "sethome")
-     * @param defaultCost Default cost from config (fallback if no permission set)
-     * @return The effective cost for this player
+     * Custom cost values require LuckPerms or HyperPerms (same behavior as cooldown/warmup).
      */
     public double getCommandCost(UUID playerId, String commandName, double defaultCost) {
-        // Check for specific cost permissions (common values)
-        // We check from lowest to highest and return the first match
-        // This way groups with lower costs get priority (VIP pays less)
-        int[] commonCosts = {0, 1, 2, 5, 10, 15, 20, 25, 50, 100, 250, 500, 1000};
+        String costPrefix = Permissions.COST_PREFIX + commandName + ".";
         
-        for (int cost : commonCosts) {
-            if (hasPermission(playerId, Permissions.commandCost(commandName, cost))) {
-                return cost;
+        // When LP or HP is available we can enumerate all permissions and find any arbitrary cost value.
+        // Lowest value wins (most favorable to player, e.g. VIP pays less).
+        if (LuckPermsIntegration.isAvailable()) {
+            int lpCost = LuckPermsIntegration.getInheritedPermissionValue(playerId, costPrefix);
+            if (lpCost >= 0) {
+                return lpCost;
             }
         }
         
-        // No specific cost permission found, return config default
+        if (HyperPermsIntegration.isAvailable()) {
+            int hpCost = HyperPermsIntegration.getInheritedPermissionValue(playerId, costPrefix);
+            if (hpCost >= 0) {
+                return hpCost;
+            }
+        }
+        
+        // No permission plugin available or no matching permission found - return config default.
+        // Custom cost values require LuckPerms or HyperPerms (same behavior as cooldown/warmup).
         return defaultCost;
     }
 

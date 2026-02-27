@@ -5,9 +5,11 @@ import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.IgnoreService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -26,6 +28,9 @@ public class HytaleIgnoreCommand extends AbstractPlayerCommand {
         super("ignore", "Ignore a player's messages");
         this.ignoreService = ignoreService;
         this.configManager = configManager;
+        // Register player arg for autocomplete suggestions (execution uses raw input parsing)
+        withRequiredArg("player", "Target player", ArgTypes.STRING)
+            .suggest(PlayerSuggestionProvider.INSTANCE);
         setAllowsExtraArguments(true);
     }
 
@@ -82,9 +87,6 @@ public class HytaleIgnoreCommand extends AbstractPlayerCommand {
     }
 
     private PlayerRef findPlayer(String name) {
-        for (PlayerRef p : Universe.get().getPlayers()) {
-            if (p.getUsername().equalsIgnoreCase(name)) return p;
-        }
-        return null;
+        return PlayerSuggestionProvider.findPlayer(name);
     }
 }

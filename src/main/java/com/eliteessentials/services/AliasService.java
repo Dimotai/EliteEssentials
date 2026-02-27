@@ -451,7 +451,7 @@ public class AliasService {
             Location currentLoc = new Location(
                 world.getName(),
                 currentPos.getX(), currentPos.getY(), currentPos.getZ(),
-                rotation.y, rotation.x
+                rotation.y, 0f
             );
             
             World targetWorld = Universe.get().getWorld(targetWorldName);
@@ -655,7 +655,7 @@ public class AliasService {
             }
             
             var backService = EliteEssentials.getInstance().getBackService();
-            Optional<Location> locOpt = backService.popLocation(playerId);
+            Optional<Location> locOpt = backService.peekLocation(playerId);
             if (locOpt.isEmpty()) {
                 ctx.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("backNoLocation"), "#FF5555"));
                 return;
@@ -663,8 +663,17 @@ public class AliasService {
             
             Location loc = locOpt.get();
             World targetWorld = Universe.get().getWorld(loc.getWorld());
-            if (targetWorld == null) targetWorld = world;
+            if (targetWorld == null) {
+                // World no longer exists — discard the stale location
+                backService.popLocation(playerId);
+                ctx.sendMessage(MessageFormatter.formatWithFallback(
+                    configManager.getMessage("backWorldNotFound", "world", loc.getWorld()), "#FF5555"));
+                return;
+            }
             final World finalWorld = targetWorld;
+            
+            // Now consume the location
+            backService.popLocation(playerId);
             
             Vector3d pos = new Vector3d(loc.getX(), loc.getY(), loc.getZ());
             Vector3f rot = new Vector3f(0, loc.getYaw(), 0);

@@ -6,6 +6,7 @@ import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.PlayerService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
+import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -43,7 +44,8 @@ public class HytaleSeenCommand extends AbstractPlayerCommand {
         this.configManager = configManager;
         this.playerService = playerService;
         
-        this.targetArg = withRequiredArg("player", "Player name to look up", ArgTypes.STRING);
+        this.targetArg = withRequiredArg("player", "Player name to look up", ArgTypes.STRING)
+            .suggest(PlayerSuggestionProvider.INSTANCE);
     }
 
     @Override
@@ -62,12 +64,11 @@ public class HytaleSeenCommand extends AbstractPlayerCommand {
         String targetName = ctx.get(targetArg);
         
         // Check if player is currently online
-        for (PlayerRef onlinePlayer : Universe.get().getPlayers()) {
-            if (onlinePlayer.getUsername().equalsIgnoreCase(targetName)) {
+        PlayerRef onlinePlayer = PlayerSuggestionProvider.findPlayer(targetName);
+        if (onlinePlayer != null) {
                 ctx.sendMessage(MessageFormatter.formatWithFallback(
                     configManager.getMessage("seenOnline", "player", onlinePlayer.getUsername()), "#55FF55"));
                 return;
-            }
         }
         
         // Look up in player cache

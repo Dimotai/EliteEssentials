@@ -117,7 +117,7 @@ public class HytaleTopCommand extends AbstractPlayerCommand {
         Location currentLoc = new Location(
             world.getName(),
             pos.getX(), pos.getY(), pos.getZ(),
-            rotation.x, rotation.y
+            rotation.y, 0f  // yaw only, pitch=0 to prevent tilt
         );
         backService.pushLocation(playerId, currentLoc);
 

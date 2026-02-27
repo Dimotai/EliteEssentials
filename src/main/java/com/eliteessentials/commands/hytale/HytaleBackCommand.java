@@ -108,10 +108,17 @@ public class HytaleBackCommand extends AbstractPlayerCommand {
         
         Vector3d currentPos = transform.getPosition();
 
-        // Get target world
+        // Get target world - fail if the world no longer exists rather than
+        // silently falling back to the player's current world (which would teleport
+        // them to the stored coordinates in the wrong world, appearing as "random" locations)
         World targetWorld = Universe.get().getWorld(destination.getWorld());
         if (targetWorld == null) {
-            targetWorld = world;
+            // World was deleted or unloaded (e.g., temporary arena world)
+            // Pop the stale location so the next /back can reach a valid one
+            backService.popLocation(playerId);
+            ctx.sendMessage(MessageFormatter.formatWithFallback(
+                configManager.getMessage("backWorldNotFound", "world", destination.getWorld()), "#FF5555"));
+            return;
         }
         final World finalWorld = targetWorld;
 

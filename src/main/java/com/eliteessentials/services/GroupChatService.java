@@ -1,6 +1,7 @@
 package com.eliteessentials.services;
 
 import com.eliteessentials.config.ConfigManager;
+import com.eliteessentials.integration.HyperPermsIntegration;
 import com.eliteessentials.integration.LuckPermsIntegration;
 import com.eliteessentials.integration.PAPIIntegration;
 import com.eliteessentials.model.GroupChat;
@@ -223,19 +224,30 @@ public class GroupChatService {
     }
     
     /**
-     * Check if a player belongs to a specific LuckPerms group.
+     * Check if a player belongs to a specific permission group.
+     * Checks LuckPerms first, then HyperPerms as fallback.
      */
     public boolean playerBelongsToGroup(UUID playerId, String groupName) {
-        if (!LuckPermsIntegration.isAvailable()) {
+        if (LuckPermsIntegration.isAvailable()) {
+            List<String> playerGroups = LuckPermsIntegration.getGroups(playerId);
+            for (String group : playerGroups) {
+                if (group.equalsIgnoreCase(groupName)) {
+                    return true;
+                }
+            }
             return false;
         }
         
-        List<String> playerGroups = LuckPermsIntegration.getGroups(playerId);
-        for (String group : playerGroups) {
-            if (group.equalsIgnoreCase(groupName)) {
-                return true;
+        if (HyperPermsIntegration.isAvailable()) {
+            List<String> playerGroups = HyperPermsIntegration.getGroups(playerId);
+            for (String group : playerGroups) {
+                if (group.equalsIgnoreCase(groupName)) {
+                    return true;
+                }
             }
+            return false;
         }
+        
         return false;
     }
     
@@ -529,6 +541,27 @@ public class GroupChatService {
             }
         }
         
+        // Try HyperPerms as fallback for group resolution
+        if (highestPriorityGroup == null && HyperPermsIntegration.isAvailable()) {
+            List<String> groups = HyperPermsIntegration.getGroups(playerRef.getUuid());
+            
+            for (String group : groups) {
+                String matchedConfigKey = findConfigKeyIgnoreCase(config.groupFormats, group);
+                
+                if (matchedConfigKey != null) {
+                    int priority = getGroupPriorityIgnoreCase(config.groupPriorities, group, matchedConfigKey);
+                    if (priority > highestPriority) {
+                        highestPriority = priority;
+                        highestPriorityGroup = matchedConfigKey;
+                    }
+                }
+            }
+            
+            if (highestPriorityGroup != null) {
+                return config.groupFormats.get(highestPriorityGroup);
+            }
+        }
+        
         // Fall back to simple permission system
         if (PermissionService.get().isAdmin(playerRef.getUuid())) {
             for (String groupName : config.groupFormats.keySet()) {
@@ -591,7 +624,10 @@ public class GroupChatService {
      * Supports {prefix}, {suffix}, {group} and their %luckperms_*% equivalents.
      */
     private String replaceLuckPermsPlaceholders(PlayerRef player, String format) {
-        if (!LuckPermsIntegration.isAvailable()) {
+        boolean lpAvailable = LuckPermsIntegration.isAvailable();
+        boolean hpAvailable = HyperPermsIntegration.isAvailable();
+        
+        if (!lpAvailable && !hpAvailable) {
             return format
                     .replace("%luckperms_prefix%", "")
                     .replace("%luckperms_suffix%", "")
@@ -608,21 +644,21 @@ public class GroupChatService {
         boolean hasGroup = format.contains("%luckperms_primary_group%") || format.contains("{group}");
         
         if (hasPrefix) {
-            String prefix = LuckPermsIntegration.getPrefix(playerId);
+            String prefix = lpAvailable ? LuckPermsIntegration.getPrefix(playerId) : (hpAvailable ? HyperPermsIntegration.getPrefix(playerId) : "");
             format = format
                     .replace("%luckperms_prefix%", prefix)
                     .replace("{prefix}", prefix);
         }
         
         if (hasSuffix) {
-            String suffix = LuckPermsIntegration.getSuffix(playerId);
+            String suffix = lpAvailable ? LuckPermsIntegration.getSuffix(playerId) : (hpAvailable ? HyperPermsIntegration.getSuffix(playerId) : "");
             format = format
                     .replace("%luckperms_suffix%", suffix)
                     .replace("{suffix}", suffix);
         }
         
         if (hasGroup) {
-            String group = LuckPermsIntegration.getPrimaryGroupDisplay(playerId);
+            String group = lpAvailable ? LuckPermsIntegration.getPrimaryGroupDisplay(playerId) : (hpAvailable ? HyperPermsIntegration.getPrimaryGroupDisplay(playerId) : "");
             format = format
                     .replace("%luckperms_primary_group%", group)
                     .replace("{group}", group);

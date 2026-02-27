@@ -165,10 +165,10 @@ public class HytaleTpAcceptCommand extends AbstractPlayerCommand {
         HeadRotation targetHeadRot = (HeadRotation) store.getComponent(ref, HeadRotation.getComponentType());
         float targetYaw = targetHeadRot != null ? targetHeadRot.getRotation().y : 0;
         
-        // Prepare locations for /back
-        Location requesterLoc = new Location(world.getName(), requesterPos.getX(), requesterPos.getY(), requesterPos.getZ(), reqRot.x, reqRot.y);
+        // Prepare locations for /back — yaw only, pitch=0 to prevent tilt
+        Location requesterLoc = new Location(world.getName(), requesterPos.getX(), requesterPos.getY(), requesterPos.getZ(), reqRot.y, 0f);
         Location targetLoc = new Location(world.getName(), targetPos.getX(), targetPos.getY(), targetPos.getZ(), 
-                                          targetHeadRot != null ? targetHeadRot.getRotation().x : 0, targetYaw);
+                                          targetHeadRot != null ? targetHeadRot.getRotation().y : 0, 0f);
         
         // Define teleport action
         Runnable doTeleport = () -> {
@@ -256,9 +256,9 @@ public class HytaleTpAcceptCommand extends AbstractPlayerCommand {
                 float targetYaw = targetHeadRot != null ? targetHeadRot.getRotation().y : 0;
                 Vector3f targetRot = targetHeadRot != null ? targetHeadRot.getRotation() : new Vector3f(0, 0, 0);
                 
-                // Prepare locations for /back
-                Location requesterLoc = new Location(requesterWorld.getName(), requesterPos.getX(), requesterPos.getY(), requesterPos.getZ(), reqRot.x, reqRot.y);
-                Location targetLoc = new Location(acceptorWorld.getName(), targetPos.getX(), targetPos.getY(), targetPos.getZ(), targetRot.x, targetRot.y);
+                // Prepare locations for /back — yaw only, pitch=0 to prevent tilt
+                Location requesterLoc = new Location(requesterWorld.getName(), requesterPos.getX(), requesterPos.getY(), requesterPos.getZ(), reqRot.y, 0f);
+                Location targetLoc = new Location(acceptorWorld.getName(), targetPos.getX(), targetPos.getY(), targetPos.getZ(), targetRot.y, 0f);
                 
                 // Define teleport action
                 Runnable doTeleport = () -> {
