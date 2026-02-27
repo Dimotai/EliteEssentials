@@ -2,9 +2,9 @@ package com.eliteessentials.commands.hytale;
 
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.model.PlayerFile;
-import com.eliteessentials.permissions.PermissionService;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.PlayerService;
+import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
 import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.component.Ref;
@@ -59,30 +59,25 @@ public class HytalePlayerInfoCommand extends AbstractPlayerCommand {
         String rawInput = ctx.getInputString().trim();
         String[] parts = rawInput.split("\\s+", 3);
 
-        UUID senderId = player.getUuid();
+        boolean enabled = configManager.getConfig().playerinfo.enabled;
 
-        // /playerinfo - self
+        // /playerinfo - self (simple mode: everyone when enabled; advanced: misc.playerinfo)
         if (parts.length < 2 || parts[1].isEmpty()) {
-            if (!PermissionService.get().canUseAdminCommand(senderId, Permissions.PLAYERINFO, true)) {
-                ctx.sendMessage(MessageFormatter.formatWithFallback(
-                    configManager.getMessage("noPermission"), "#FF5555"));
+            if (!CommandPermissionUtil.canExecute(ctx, player, Permissions.PLAYERINFO, enabled)) {
                 return;
             }
-            Optional<PlayerFile> self = playerService.getPlayer(senderId);
+            Optional<PlayerFile> self = playerService.getPlayer(player.getUuid());
             if (self.isEmpty()) {
                 ctx.sendMessage(MessageFormatter.formatWithFallback(
                     configManager.getMessage("playerinfoNoData"), "#FF5555"));
                 return;
             }
-            sendPlayerInfo(ctx, self.get(), player.getUsername(), true, senderId);
+            sendPlayerInfo(ctx, self.get(), player.getUsername(), true, player.getUuid());
             return;
         }
 
-        // /playerinfo <name> - other (or self if name matches)
-        if (!PermissionService.get().hasPermission(senderId, Permissions.PLAYERINFO_OTHERS)
-                && !PermissionService.get().isAdmin(senderId)) {
-            ctx.sendMessage(MessageFormatter.formatWithFallback(
-                configManager.getMessage("noPermission"), "#FF5555"));
+        // /playerinfo <name> - other (simple mode: OP only when enabled; advanced: misc.playerinfo.others)
+        if (!CommandPermissionUtil.canExecuteAdmin(ctx, player, Permissions.PLAYERINFO_OTHERS, enabled)) {
             return;
         }
 
@@ -98,8 +93,8 @@ public class HytalePlayerInfoCommand extends AbstractPlayerCommand {
                 return;
             }
             data = opt.get();
-            boolean isSelf = onlineRef.getUuid().equals(senderId);
-            sendPlayerInfo(ctx, data, onlineRef.getUsername(), isSelf, senderId);
+            boolean isSelf = onlineRef.getUuid().equals(player.getUuid());
+            sendPlayerInfo(ctx, data, onlineRef.getUsername(), isSelf, player.getUuid());
             return;
         }
 
@@ -110,7 +105,7 @@ public class HytalePlayerInfoCommand extends AbstractPlayerCommand {
             return;
         }
         data = opt.get();
-        sendPlayerInfo(ctx, data, Objects.requireNonNullElse(data.getName(), targetName), false, senderId);
+        sendPlayerInfo(ctx, data, Objects.requireNonNullElse(data.getName(), targetName), false, player.getUuid());
     }
 
     private void sendPlayerInfo(CommandContext ctx, PlayerFile data, String displayName,

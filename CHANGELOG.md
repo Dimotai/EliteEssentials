@@ -3,7 +3,7 @@
 ## 1.1.16 - 2026-02-26
 
 ### Added
-- `/playerinfo` command - detailed player info (replaces reliance on Hytale's `/whoami`)
+- `/playerinfo` command - detailed player info (Much more detailed compared to Hytale's `/whoami`)
   - `/playerinfo` - Your own info (requires `misc.playerinfo`)
   - `/playerinfo <name>` - Another player's info (requires `misc.playerinfo.others`)
   - Displays: UUID (clickable link to hytaleid.com for lookup/copy), Username, Nickname (if set), First join, Last seen (or "Online now"), Wallet, Playtime, Kit claims, Claimed milestones, Homes count, Default group chat

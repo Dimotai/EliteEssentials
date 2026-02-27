@@ -67,6 +67,7 @@ public class PluginConfig {
     public AfkConfig afk = new AfkConfig();
     public JoindateConfig joindate = new JoindateConfig();
     public PlaytimeConfig playtime = new PlaytimeConfig();
+    public PlayerinfoConfig playerinfo = new PlayerinfoConfig();
     public IgnoreConfig ignore = new IgnoreConfig();
     public MuteConfig mute = new MuteConfig();
     public BanConfig ban = new BanConfig();
@@ -1462,6 +1463,13 @@ public class PluginConfig {
     
     public static class PlaytimeConfig {
         /** Enable/disable the /playtime command */
+        public boolean enabled = true;
+    }
+
+    // ==================== PLAYERINFO ====================
+
+    public static class PlayerinfoConfig {
+        /** Enable/disable the /playerinfo command */
         public boolean enabled = true;
     }
     
