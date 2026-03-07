@@ -28,6 +28,10 @@ public class SimpleStringArg extends SingleArgumentType<String> {
     // Kit name for /kit create, /kit delete
     public static final SimpleStringArg KIT_NAME = new SimpleStringArg("KitName", "Kit name", new String[]{"Starter", "Warrior", "Builder"});
     
+    // ===== SPAWN COMMANDS =====
+    // Spawn point name for /setspawn, /delspawn, /spawn
+    public static final SimpleStringArg SPAWN_NAME = new SimpleStringArg("SpawnName", "Spawn point name", new String[]{"main", "north", "outpost"});
+    
     // ===== GENERIC (fallback) =====
     // Generic name arg - use specific ones above when possible
     public static final SimpleStringArg NAME = new SimpleStringArg("String", "A name (letters, numbers, underscores)", new String[]{"MyName", "test_1"});

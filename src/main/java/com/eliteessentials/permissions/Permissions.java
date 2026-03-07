@@ -103,6 +103,8 @@ public final class Permissions {
     
     public static final String SPAWN = SPAWN_CATEGORY + ".use";
     public static final String SETSPAWN = SPAWN_CATEGORY + ".set";
+    public static final String DELSPAWN = SPAWN_CATEGORY + ".delete";
+    public static final String SPAWNS = SPAWN_CATEGORY + ".list";
     
     // Spawn bypass
     public static final String SPAWN_BYPASS = SPAWN_CATEGORY + ".bypass";
@@ -206,6 +208,7 @@ public final class Permissions {
     public static final String KIT_CREATE = KIT_CATEGORY + ".create";
     public static final String KIT_DELETE = KIT_CATEGORY + ".delete";
     public static final String KIT_BYPASS_COOLDOWN = KIT_CATEGORY + ".bypass.cooldown";
+    public static final String KIT_BYPASS_ONETIME = KIT_CATEGORY + ".bypass.onetime";
     
     // Kit access: eliteessentials.command.kit.<kitname>
     // (handled by kitAccess() method)

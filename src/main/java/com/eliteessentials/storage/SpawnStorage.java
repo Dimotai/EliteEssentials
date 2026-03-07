@@ -2,6 +2,9 @@ package com.eliteessentials.storage;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import com.hypixel.hytale.math.vector.Transform;
 import com.hypixel.hytale.math.vector.Vector3d;
@@ -13,16 +16,22 @@ import com.hypixel.hytale.server.core.universe.world.spawn.GlobalSpawnProvider;
 import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Logger;
 
 /**
  * Storage for per-world spawn locations.
  * Saves to spawn.json in the plugin data folder.
  * 
- * Each world can have its own spawn point. When a player uses /spawn,
- * they teleport to the spawn in their current world.
+ * Supports both single-spawn and multi-spawn modes:
+ * - Single spawn (perWorld=false): one spawn per world, stored as array with one entry
+ * - Multi spawn (perWorld=true): multiple named spawns per world with nearest-spawn logic
+ * 
+ * Storage format (v2 - array-based):
+ *   { "worldName": [ { name, primary, protection, world, x, y, z, yaw, pitch }, ... ] }
+ * 
+ * Automatically migrates from v1 format (object-based):
+ *   { "worldName": { world, x, y, z, yaw, pitch } }
  */
 public class SpawnStorage {
 
@@ -31,10 +40,10 @@ public class SpawnStorage {
             .setPrettyPrinting()
             .disableHtmlEscaping()
             .create();
-    private static final Type SPAWN_MAP_TYPE = new TypeToken<Map<String, SpawnData>>(){}.getType();
+    private static final Type SPAWN_LIST_MAP_TYPE = new TypeToken<Map<String, List<SpawnData>>>(){}.getType();
 
     private final File dataFolder;
-    private Map<String, SpawnData> spawns = new HashMap<>();
+    private Map<String, List<SpawnData>> spawns = new HashMap<>();
 
     public SpawnStorage(File dataFolder) {
         this.dataFolder = dataFolder;
@@ -51,53 +60,105 @@ public class SpawnStorage {
         }
 
         try (Reader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) {
-            // Try to load as new format (Map)
-            spawns = gson.fromJson(reader, SPAWN_MAP_TYPE);
-            if (spawns == null) {
+            String content = readFully(reader);
+            JsonElement root = JsonParser.parseString(content);
+            
+            if (!root.isJsonObject()) {
                 spawns = new HashMap<>();
+                logger.warning("spawn.json is not a valid JSON object.");
+                return;
             }
             
-            // Check if we got valid data - if the map has entries but they're all null or invalid,
-            // it means we loaded old format as new format (Gson doesn't throw, just returns bad data)
-            boolean hasValidData = false;
-            for (SpawnData spawn : spawns.values()) {
-                if (spawn != null && spawn.world != null) {
-                    hasValidData = true;
-                    break;
+            JsonObject obj = root.getAsJsonObject();
+            if (obj.size() == 0) {
+                spawns = new HashMap<>();
+                logger.info("spawn.json is empty - no spawn points set.");
+                return;
+            }
+            
+            // Detect format: if any value is an array, it's v2; if it's an object, it's v1
+            boolean isV2 = false;
+            boolean isV1 = false;
+            for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
+                if (entry.getValue().isJsonArray()) {
+                    isV2 = true;
+                } else if (entry.getValue().isJsonObject()) {
+                    isV1 = true;
                 }
             }
             
-            if (!spawns.isEmpty() && !hasValidData) {
-                // Old format was parsed incorrectly - try migration
-                logger.info("Detected old spawn format, attempting migration...");
-                spawns = new HashMap<>();
-                migrateOldFormat(file);
+            if (isV2) {
+                spawns = gson.fromJson(content, SPAWN_LIST_MAP_TYPE);
+                if (spawns == null) spawns = new HashMap<>();
+                int totalSpawns = spawns.values().stream().mapToInt(List::size).sum();
+                logger.info("Loaded " + totalSpawns + " spawn point(s) across " + spawns.size() + " world(s) from: " + file.getAbsolutePath());
+            } else if (isV1) {
+                migrateFromV1(obj);
             } else {
-                logger.info("Loaded spawns for " + spawns.size() + " world(s) from: " + file.getAbsolutePath());
+                // Try single-spawn legacy format (just one SpawnData at root)
+                migrateFromLegacy(content);
             }
         } catch (Exception e) {
-            // Try to migrate from old format (single SpawnData)
-            try {
-                migrateOldFormat(file);
-            } catch (Exception e2) {
-                logger.warning("Failed to load spawn.json: " + e.getMessage());
-                spawns = new HashMap<>();
-            }
+            logger.warning("Failed to load spawn.json: " + e.getMessage());
+            spawns = new HashMap<>();
         }
     }
     
     /**
-     * Migrate from old single-spawn format to new per-world format.
+     * Migrate from v1 format: { "worldName": { world, x, y, z, yaw, pitch } }
+     * to v2 format: { "worldName": [ { name: "main", primary: true, ... } ] }
      */
-    private void migrateOldFormat(File file) throws IOException {
-        try (Reader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) {
-            SpawnData oldSpawn = gson.fromJson(reader, SpawnData.class);
-            if (oldSpawn != null && oldSpawn.world != null) {
-                spawns = new HashMap<>();
-                spawns.put(oldSpawn.world, oldSpawn);
-                save();
-                logger.info("Migrated old spawn format to per-world format for world: " + oldSpawn.world);
+    private void migrateFromV1(JsonObject root) {
+        spawns = new HashMap<>();
+        int migrated = 0;
+        
+        for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
+            if (!entry.getValue().isJsonObject()) continue;
+            
+            try {
+                SpawnData oldSpawn = gson.fromJson(entry.getValue(), SpawnData.class);
+                if (oldSpawn != null && oldSpawn.world != null) {
+                    oldSpawn.name = "main";
+                    oldSpawn.primary = true;
+                    oldSpawn.protection = true;
+                    
+                    List<SpawnData> list = new ArrayList<>();
+                    list.add(oldSpawn);
+                    spawns.put(entry.getKey(), list);
+                    migrated++;
+                }
+            } catch (Exception e) {
+                logger.warning("Failed to migrate spawn for world '" + entry.getKey() + "': " + e.getMessage());
             }
+        }
+        
+        if (migrated > 0) {
+            save();
+            logger.info("Migrated " + migrated + " spawn point(s) from v1 to v2 format (multi-spawn support).");
+        }
+    }
+    
+    /**
+     * Migrate from legacy single-spawn format (bare SpawnData at root).
+     */
+    private void migrateFromLegacy(String content) {
+        try {
+            SpawnData oldSpawn = gson.fromJson(content, SpawnData.class);
+            if (oldSpawn != null && oldSpawn.world != null) {
+                oldSpawn.name = "main";
+                oldSpawn.primary = true;
+                oldSpawn.protection = true;
+                
+                spawns = new HashMap<>();
+                List<SpawnData> list = new ArrayList<>();
+                list.add(oldSpawn);
+                spawns.put(oldSpawn.world, list);
+                save();
+                logger.info("Migrated legacy single-spawn format to v2 for world: " + oldSpawn.world);
+            }
+        } catch (Exception e) {
+            logger.warning("Failed to migrate legacy spawn format: " + e.getMessage());
+            spawns = new HashMap<>();
         }
     }
 
@@ -115,64 +176,271 @@ public class SpawnStorage {
         }
     }
 
+    // ==================== SINGLE-SPAWN API (backward compatible) ====================
+
     /**
-     * Get spawn for a specific world.
+     * Get the primary spawn for a world.
+     * Backward compatible - returns the primary spawn point.
      */
     public SpawnData getSpawn(String worldName) {
-        return spawns.get(worldName);
+        return getPrimarySpawn(worldName);
     }
     
     /**
-     * Set spawn for a specific world.
+     * Set the primary spawn for a world (single-spawn mode).
+     * If a primary spawn exists, it's updated. Otherwise a new one is created.
      */
     public void setSpawn(String world, double x, double y, double z, float yaw, float pitch) {
-        spawns.put(world, new SpawnData(world, x, y, z, yaw, pitch));
+        List<SpawnData> list = spawns.computeIfAbsent(world, k -> new ArrayList<>());
+        
+        // Find existing primary
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).primary) {
+                SpawnData updated = new SpawnData(world, x, y, z, yaw, pitch);
+                updated.name = list.get(i).name;
+                updated.primary = true;
+                updated.protection = list.get(i).protection;
+                list.set(i, updated);
+                save();
+                return;
+            }
+        }
+        
+        // No primary exists - create one
+        SpawnData spawn = new SpawnData(world, x, y, z, yaw, pitch);
+        spawn.name = "main";
+        spawn.primary = true;
+        spawn.protection = true;
+        list.add(spawn);
         save();
     }
 
     /**
-     * Check if a world has a spawn set.
+     * Check if a world has any spawn set.
      */
     public boolean hasSpawn(String worldName) {
-        return spawns.containsKey(worldName);
+        List<SpawnData> list = spawns.get(worldName);
+        return list != null && !list.isEmpty();
     }
     
     /**
-     * Check if any spawn is set.
+     * Check if any spawn is set across all worlds.
      */
     public boolean hasSpawn() {
-        return !spawns.isEmpty();
+        return spawns.values().stream().anyMatch(list -> !list.isEmpty());
     }
     
     /**
      * Get all world names that have spawns set.
      */
-    public java.util.Set<String> getWorldsWithSpawn() {
-        return spawns.keySet();
+    public Set<String> getWorldsWithSpawn() {
+        Set<String> result = new HashSet<>();
+        for (Map.Entry<String, List<SpawnData>> entry : spawns.entrySet()) {
+            if (!entry.getValue().isEmpty()) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
+    }
+
+    // ==================== MULTI-SPAWN API ====================
+
+    /**
+     * Get the primary spawn for a world.
+     */
+    public SpawnData getPrimarySpawn(String worldName) {
+        List<SpawnData> list = spawns.get(worldName);
+        if (list == null || list.isEmpty()) return null;
+        
+        for (SpawnData spawn : list) {
+            if (spawn.primary) return spawn;
+        }
+        // Fallback: return first spawn if no primary flag
+        return list.get(0);
     }
 
     /**
-     * Sync a single spawn to a world's native spawn provider.
-     * Sets the WorldConfig's SpawnProvider to a GlobalSpawnProvider at our coordinates,
-     * which controls where new players (no TransformComponent) land.
+     * Get all spawns for a world.
+     */
+    public List<SpawnData> getSpawns(String worldName) {
+        List<SpawnData> list = spawns.get(worldName);
+        return list != null ? Collections.unmodifiableList(list) : Collections.emptyList();
+    }
+
+    /**
+     * Get a spawn by name in a specific world (case-insensitive).
+     */
+    public SpawnData getSpawnByName(String worldName, String name) {
+        List<SpawnData> list = spawns.get(worldName);
+        if (list == null) return null;
+        
+        for (SpawnData spawn : list) {
+            if (spawn.name != null && spawn.name.equalsIgnoreCase(name)) {
+                return spawn;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find the nearest spawn point to the given coordinates in a world.
+     * Uses 2D distance (X/Z) since Y differences matter less for "nearest spawn".
+     */
+    public SpawnData getNearestSpawn(String worldName, double x, double z) {
+        List<SpawnData> list = spawns.get(worldName);
+        if (list == null || list.isEmpty()) return null;
+        if (list.size() == 1) return list.get(0);
+        
+        SpawnData nearest = null;
+        double nearestDistSq = Double.MAX_VALUE;
+        
+        for (SpawnData spawn : list) {
+            double dx = spawn.x - x;
+            double dz = spawn.z - z;
+            double distSq = dx * dx + dz * dz;
+            if (distSq < nearestDistSq) {
+                nearestDistSq = distSq;
+                nearest = spawn;
+            } else if (nearest != null && Math.abs(distSq - nearestDistSq) < 1e-12 && spawn.primary && !nearest.primary) {
+                // Tie: prefer primary spawn when distances are effectively equal
+                nearest = spawn;
+            }
+        }
+        
+        return nearest;
+    }
+
+    /**
+     * Add or update a named spawn point in a world.
+     * If a spawn with the same name exists, it's updated.
+     * 
+     * @return the created/updated SpawnData, or null if max limit reached
+     */
+    public SpawnData addSpawn(String world, String name, double x, double y, double z, 
+                              float yaw, float pitch, boolean primary, boolean protection, int maxPerWorld) {
+        List<SpawnData> list = spawns.computeIfAbsent(world, k -> new ArrayList<>());
+        
+        // Check if updating an existing spawn
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).name != null && list.get(i).name.equalsIgnoreCase(name)) {
+                SpawnData updated = new SpawnData(world, x, y, z, yaw, pitch);
+                updated.name = name;
+                updated.primary = primary;
+                updated.protection = protection;
+                
+                // If setting this as primary, unset other primaries
+                if (primary) {
+                    for (SpawnData s : list) {
+                        s.primary = false;
+                    }
+                }
+                
+                list.set(i, updated);
+                save();
+                return updated;
+            }
+        }
+        
+        // New spawn - check limit
+        if (maxPerWorld > 0 && list.size() >= maxPerWorld) {
+            return null;
+        }
+        
+        // If setting this as primary, unset other primaries
+        if (primary) {
+            for (SpawnData s : list) {
+                s.primary = false;
+            }
+        }
+        
+        // If this is the first spawn in the world, force it primary
+        if (list.isEmpty()) {
+            primary = true;
+        }
+        
+        SpawnData spawn = new SpawnData(world, x, y, z, yaw, pitch);
+        spawn.name = name;
+        spawn.primary = primary;
+        spawn.protection = protection;
+        list.add(spawn);
+        save();
+        return spawn;
+    }
+
+    /**
+     * Remove a named spawn point from a world.
+     * 
+     * @return true if removed, false if not found
+     */
+    public boolean removeSpawn(String worldName, String name) {
+        List<SpawnData> list = spawns.get(worldName);
+        if (list == null) return false;
+        
+        boolean removed = list.removeIf(s -> s.name != null && s.name.equalsIgnoreCase(name));
+        
+        if (removed) {
+            // If we removed the primary, promote the first remaining spawn
+            if (!list.isEmpty()) {
+                boolean hasPrimary = list.stream().anyMatch(s -> s.primary);
+                if (!hasPrimary) {
+                    list.get(0).primary = true;
+                }
+            } else {
+                spawns.remove(worldName);
+            }
+            save();
+        }
+        
+        return removed;
+    }
+
+    /**
+     * Get the count of spawn points in a world.
+     */
+    public int getSpawnCount(String worldName) {
+        List<SpawnData> list = spawns.get(worldName);
+        return list != null ? list.size() : 0;
+    }
+
+    /**
+     * Get all spawn points across all worlds that have protection enabled.
+     * Used by SpawnProtectionService.
+     */
+    public Map<String, List<SpawnData>> getAllProtectedSpawns() {
+        Map<String, List<SpawnData>> result = new HashMap<>();
+        for (Map.Entry<String, List<SpawnData>> entry : spawns.entrySet()) {
+            List<SpawnData> protectedSpawns = new ArrayList<>();
+            for (SpawnData spawn : entry.getValue()) {
+                if (spawn.protection) {
+                    protectedSpawns.add(spawn);
+                }
+            }
+            if (!protectedSpawns.isEmpty()) {
+                result.put(entry.getKey(), protectedSpawns);
+            }
+        }
+        return result;
+    }
+
+    // ==================== WORLD SYNC ====================
+
+    /**
+     * Sync the primary spawn to a world's native spawn provider.
+     * Only syncs the primary spawn - Hytale's native provider supports one spawn per world.
      * 
      * NOTE: We intentionally do NOT call worldConfig.markChanged() because that triggers
      * spawn marker entity recreation in SpawnReferenceSystems, which causes
      * ArrayIndexOutOfBoundsException crashes during chunk loading when duplicate
-     * marker entities collide. setSpawnProvider alone updates the runtime spawn
-     * location without touching the marker entity system.
+     * marker entities collide.
      */
     public void syncSpawnToWorld(World world, SpawnData spawn) {
         try {
             WorldConfig worldConfig = world.getWorldConfig();
-            // pitch=0 to avoid player tilt, yaw for facing direction, roll=0
             Transform spawnTransform = new Transform(
                 new Vector3d(spawn.x, spawn.y, spawn.z),
                 new Vector3f(0, spawn.yaw, 0)
             );
             worldConfig.setSpawnProvider(new GlobalSpawnProvider(spawnTransform));
-            // Do NOT call worldConfig.markChanged() - it triggers spawn marker entity
-            // recreation that crashes SpawnReferenceSystems$MarkerAddRemoveSystem
             logger.info("[SpawnSync] Set native spawn provider for world '" + world.getName() + 
                 "' at " + String.format("%.1f, %.1f, %.1f", spawn.x, spawn.y, spawn.z));
         } catch (Exception e) {
@@ -180,10 +448,26 @@ public class SpawnStorage {
         }
     }
 
+    // ==================== UTILITIES ====================
+
+    private String readFully(Reader reader) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        char[] buffer = new char[4096];
+        int read;
+        while ((read = reader.read(buffer)) != -1) {
+            sb.append(buffer, 0, read);
+        }
+        return sb.toString();
+    }
+
     /**
-     * Simple data class for spawn location.
+     * Data class for a spawn location.
+     * Extended from v1 with name, primary flag, and per-spawn protection toggle.
      */
     public static class SpawnData {
+        public String name;
+        public boolean primary;
+        public boolean protection = true;
         public String world;
         public double x;
         public double y;

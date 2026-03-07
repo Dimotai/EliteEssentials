@@ -19,7 +19,6 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import com.hypixel.hytale.component.Holder;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;
@@ -234,15 +233,17 @@ public class HytalePlayerInfoCommand extends AbstractPlayerCommand {
      * Returns formatted coordinates "x, y, z (world)" for an online player, or null if unavailable.
      */
     private String formatPlayerCoordinates(@Nonnull UUID playerUuid) {
-        PlayerRef ref = Universe.get().getPlayer(playerUuid);
-        if (ref == null) return null;
-        Holder<EntityStore> holder = ref.getHolder();
-        if (holder == null) return null;
-        TransformComponent transform = holder.getComponent(TransformComponent.getComponentType());
+        PlayerRef playerRef = Universe.get().getPlayer(playerUuid);
+        if (playerRef == null) return null;
+        Ref<EntityStore> entityRef = playerRef.getReference();
+        if (entityRef == null || !entityRef.isValid()) return null;
+        Store<EntityStore> store = entityRef.getStore();
+        if (store == null) return null;
+        TransformComponent transform = store.getComponent(entityRef, TransformComponent.getComponentType());
         if (transform == null) return null;
         Vector3d pos = transform.getPosition();
         String worldName = "?";
-        UUID worldUuid = ref.getWorldUuid();
+        UUID worldUuid = playerRef.getWorldUuid();
         if (worldUuid != null) {
             World w = Universe.get().getWorld(worldUuid);
             if (w != null) worldName = w.getName();

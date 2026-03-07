@@ -554,7 +554,9 @@ public class EliteEssentials extends JavaPlugin {
         if (config.spawn.enabled) {
             getCommandRegistry().registerCommand(new HytaleSpawnCommand(backService));
             getCommandRegistry().registerCommand(new HytaleSetSpawnCommand(spawnStorage));
-            registeredCommands.append("/spawn, /setspawn, ");
+            getCommandRegistry().registerCommand(new HytaleDelSpawnCommand(spawnStorage));
+            getCommandRegistry().registerCommand(new HytaleSpawnsCommand(spawnStorage));
+            registeredCommands.append("/spawn, /setspawn, /delspawn, /spawns, ");
         }
         
         // Warp commands

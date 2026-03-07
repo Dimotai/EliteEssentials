@@ -365,7 +365,7 @@ Full granular permissions following `eliteessentials.command.<category>.<action>
 | Teleport | `command.tp.tpa`, `command.tp.back`, `command.tp.back.ondeath`, `command.tp.warmup.rtp.5` |
 | Warp | `command.warp.use`, `command.warp.<warpname>`, `command.warp.warmup.0` |
 | Spawn | `command.spawn.use`, `command.spawn.protection.bypass`, `command.spawn.warmup.0` |
-| Kit | `command.kit.use`, `command.kit.<kitname>`, `command.kit.bypass.cooldown` |
+| Kit | `command.kit.use`, `command.kit.<kitname>`, `command.kit.bypass.cooldown`, `command.kit.bypass.onetime` |
 | Ignore | `command.misc.ignore` |
 | Invsee | `command.misc.invsee` |
 | Admin | `admin.mute`, `admin.unmute` |

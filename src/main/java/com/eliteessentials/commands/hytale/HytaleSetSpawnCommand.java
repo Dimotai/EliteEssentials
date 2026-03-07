@@ -1,6 +1,8 @@
 package com.eliteessentials.commands.hytale;
 
 import com.eliteessentials.EliteEssentials;
+import com.eliteessentials.commands.args.SimpleStringArg;
+import com.eliteessentials.config.PluginConfig;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.storage.SpawnStorage;
 import com.eliteessentials.util.CommandPermissionUtil;
@@ -10,6 +12,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
@@ -20,9 +23,11 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import javax.annotation.Nonnull;
 
 /**
- * Command: /setspawn
- * Sets the server spawn point at the player's current location.
- * This location is used for /spawn teleports, spawn protection, and player respawns after death.
+ * Command: /setspawn [name]
+ * Sets a server spawn point at the player's current location.
+ * 
+ * Without a name argument: sets/updates the primary spawn (backward compatible).
+ * With a name argument (perWorld=true only): creates a named spawn point for multi-spawn.
  * 
  * Permission: eliteessentials.command.spawn.set (OP only by default)
  */
@@ -33,6 +38,8 @@ public class HytaleSetSpawnCommand extends AbstractPlayerCommand {
     public HytaleSetSpawnCommand(SpawnStorage spawnStorage) {
         super("setspawn", "Set the server spawn location");
         this.spawnStorage = spawnStorage;
+        
+        addUsageVariant(new SetSpawnWithNameCommand(spawnStorage));
     }
 
     @Override
@@ -43,13 +50,21 @@ public class HytaleSetSpawnCommand extends AbstractPlayerCommand {
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref,
                           @Nonnull PlayerRef player, @Nonnull World world) {
-        
-        // Check permission (Admin only)
         if (!CommandPermissionUtil.canExecuteAdmin(ctx, player, Permissions.SETSPAWN, true)) {
             return;
         }
 
-        // Get player position
+        doSetSpawn(ctx, store, ref, player, world, null, spawnStorage);
+    }
+    
+    /**
+     * Core setspawn logic. Name=null means set/update the primary spawn.
+     */
+    static void doSetSpawn(CommandContext ctx, Store<EntityStore> store, Ref<EntityStore> ref,
+                           PlayerRef player, World world, String name, SpawnStorage spawnStorage) {
+        var configManager = EliteEssentials.getInstance().getConfigManager();
+        PluginConfig config = configManager.getConfig();
+        
         TransformComponent transform = (TransformComponent) store.getComponent(ref, TransformComponent.getComponentType());
         if (transform == null) {
             ctx.sendMessage(MessageFormatter.formatWithFallback("Could not get your position.", "#FF5555"));
@@ -60,22 +75,86 @@ public class HytaleSetSpawnCommand extends AbstractPlayerCommand {
         HeadRotation headRotation = (HeadRotation) store.getComponent(ref, HeadRotation.getComponentType());
         Vector3f rot = headRotation != null ? headRotation.getRotation() : new Vector3f(0, 0, 0);
 
-        // Save spawn to our storage (spawn.json - our persistent source of truth)
-        spawnStorage.setSpawn(world.getName(), pos.getX(), pos.getY(), pos.getZ(), rot.y, rot.x);
-
-        // Sync to Hytale's native spawn provider - this updates the spawn icon/compass,
-        // controls where new players land, and makes WorldSpawnPoint respawn work natively
-        SpawnStorage.SpawnData spawnData = spawnStorage.getSpawn(world.getName());
-        if (spawnData != null) {
-            spawnStorage.syncSpawnToWorld(world, spawnData);
-        }
-
-        // Update spawn protection service with world name
-        EliteEssentials.getInstance().getSpawnProtectionService().setSpawnLocation(world.getName(), pos.getX(), pos.getY(), pos.getZ());
-
+        String worldName = world.getName();
         String location = String.format("%.1f, %.1f, %.1f", pos.getX(), pos.getY(), pos.getZ());
-        String message = EliteEssentials.getInstance().getConfigManager().getMessage("spawnSet",
-                "world", world.getName(), "location", location);
-        ctx.sendMessage(MessageFormatter.format(message));
+        
+        if (name == null) {
+            // Set/update primary spawn (backward compatible path)
+            spawnStorage.setSpawn(worldName, pos.getX(), pos.getY(), pos.getZ(), rot.y, rot.x);
+            
+            SpawnStorage.SpawnData spawnData = spawnStorage.getSpawn(worldName);
+            if (spawnData != null) {
+                spawnStorage.syncSpawnToWorld(world, spawnData);
+            }
+            
+            EliteEssentials.getInstance().getSpawnProtectionService()
+                .loadFromStorage(spawnStorage);
+            
+            String message = configManager.getMessage("spawnSet", "world", worldName, "location", location);
+            ctx.sendMessage(MessageFormatter.format(message));
+        } else {
+            // Named spawn - only allowed when perWorld=true
+            if (!config.spawn.perWorld) {
+                ctx.sendMessage(MessageFormatter.formatWithFallback(
+                    configManager.getMessage("spawnMultiSpawnDisabled"), "#FF5555"));
+                return;
+            }
+            
+            // Check if this is the first spawn (will auto-become primary)
+            boolean isPrimary = !spawnStorage.hasSpawn(worldName);
+            int maxPerWorld = config.spawn.maxSpawnsPerWorld;
+            
+            SpawnStorage.SpawnData result = spawnStorage.addSpawn(
+                worldName, name, pos.getX(), pos.getY(), pos.getZ(), rot.y, rot.x,
+                isPrimary, true, maxPerWorld);
+            
+            if (result == null) {
+                ctx.sendMessage(MessageFormatter.formatWithFallback(
+                    configManager.getMessage("spawnLimitReached", "max", String.valueOf(maxPerWorld)), "#FF5555"));
+                return;
+            }
+            
+            // Sync primary to native provider
+            if (result.primary) {
+                spawnStorage.syncSpawnToWorld(world, result);
+            }
+            
+            EliteEssentials.getInstance().getSpawnProtectionService()
+                .loadFromStorage(spawnStorage);
+            
+            String message = configManager.getMessage("spawnSetNamed", 
+                "name", name, "world", worldName, "location", location);
+            ctx.sendMessage(MessageFormatter.format(message));
+        }
+    }
+    
+    /**
+     * Variant: /setspawn <name>
+     */
+    private static class SetSpawnWithNameCommand extends AbstractPlayerCommand {
+        private final SpawnStorage spawnStorage;
+        private final RequiredArg<String> nameArg;
+        
+        SetSpawnWithNameCommand(SpawnStorage spawnStorage) {
+            super("setspawn");
+            this.spawnStorage = spawnStorage;
+            this.nameArg = withRequiredArg("name", "Spawn point name", SimpleStringArg.SPAWN_NAME);
+        }
+        
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+        
+        @Override
+        protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref,
+                              @Nonnull PlayerRef player, @Nonnull World world) {
+            if (!CommandPermissionUtil.canExecuteAdmin(ctx, player, Permissions.SETSPAWN, true)) {
+                return;
+            }
+            
+            String name = ctx.get(nameArg);
+            HytaleSetSpawnCommand.doSetSpawn(ctx, store, ref, player, world, name, spawnStorage);
+        }
     }
 }

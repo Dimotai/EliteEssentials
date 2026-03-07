@@ -1,6 +1,7 @@
 package com.eliteessentials.commands.hytale;
 
 import com.eliteessentials.EliteEssentials;
+import com.eliteessentials.commands.args.SimpleStringArg;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.config.PluginConfig;
 import com.eliteessentials.model.Location;
@@ -18,6 +19,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
@@ -31,9 +33,13 @@ import java.util.UUID;
 import javax.annotation.Nonnull;
 
 /**
- * Command: /spawn
- * Teleports the player to the spawn point in their current world.
- * Each world can have its own spawn set via /setspawn.
+ * Command: /spawn [name]
+ * Teleports the player to a spawn point.
+ * 
+ * When perWorld=false: always teleports to mainWorld's primary spawn (no multi-spawn).
+ * When perWorld=true:
+ *   - /spawn      → nearest spawn in current world
+ *   - /spawn name → specific named spawn in current world
  * 
  * Permissions:
  * - eliteessentials.command.spawn.use - Use /spawn command
@@ -48,6 +54,8 @@ public class HytaleSpawnCommand extends AbstractPlayerCommand {
     public HytaleSpawnCommand(BackService backService) {
         super(COMMAND_NAME, "Teleport to spawn");
         this.backService = backService;
+        
+        addUsageVariant(new SpawnWithNameCommand(backService));
     }
 
     @Override
@@ -58,6 +66,16 @@ public class HytaleSpawnCommand extends AbstractPlayerCommand {
     @Override
     protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref, 
                           @Nonnull PlayerRef player, @Nonnull World world) {
+        doSpawn(ctx, store, ref, player, world, null, backService);
+    }
+    
+    /**
+     * Core spawn teleport logic. Used by both /spawn and /spawn <name>.
+     * 
+     * @param spawnName null = auto-select (nearest when perWorld=true, primary when perWorld=false)
+     */
+    static void doSpawn(CommandContext ctx, Store<EntityStore> store, Ref<EntityStore> ref,
+                        PlayerRef player, World world, String spawnName, BackService backService) {
         UUID playerId = player.getUuid();
         ConfigManager configManager = EliteEssentials.getInstance().getConfigManager();
         PluginConfig config = configManager.getConfig();
@@ -71,16 +89,13 @@ public class HytaleSpawnCommand extends AbstractPlayerCommand {
             return;
         }
         
-        // Check permission and enabled state with cost
         if (!CommandPermissionUtil.canExecuteWithCost(ctx, player, Permissions.SPAWN, 
                 config.spawn.enabled, "spawn", config.spawn.cost)) {
             return;
         }
         
-        // Get effective cooldown from permissions (handles bypass + custom values)
         int effectiveCooldown = CommandPermissionUtil.getEffectiveTpCooldown(playerId, COMMAND_NAME, config.spawn.cooldownSeconds);
         
-        // Check cooldown if player has one
         if (effectiveCooldown > 0) {
             int cooldownRemaining = cooldownService.getCooldownRemaining(COMMAND_NAME, playerId);
             if (cooldownRemaining > 0) {
@@ -89,16 +104,42 @@ public class HytaleSpawnCommand extends AbstractPlayerCommand {
             }
         }
         
-        // Determine which world's spawn to use
-        // If perWorld is false, always use main world spawn; otherwise use current world
+        // Determine target world and spawn
         String targetWorldName = config.spawn.perWorld ? world.getName() : config.spawn.mainWorld;
-        SpawnStorage.SpawnData spawn = spawnStorage.getSpawn(targetWorldName);
-        if (spawn == null) {
-            String errorMsg = config.spawn.perWorld 
-                ? configManager.getMessage("spawnNoSpawn") + " (No spawn set for world: " + targetWorldName + ")"
-                : configManager.getMessage("spawnNoSpawn") + " (No spawn set for main world: " + targetWorldName + ")";
-            ctx.sendMessage(MessageFormatter.formatWithFallback(errorMsg, "#FF5555"));
-            return;
+        
+        // Resolve spawn point
+        SpawnStorage.SpawnData spawn;
+        
+        if (spawnName != null && config.spawn.perWorld) {
+            // Specific named spawn requested
+            spawn = spawnStorage.getSpawnByName(targetWorldName, spawnName);
+            if (spawn == null) {
+                ctx.sendMessage(MessageFormatter.formatWithFallback(
+                    configManager.getMessage("spawnDeleteNotFound", "name", spawnName), "#FF5555"));
+                return;
+            }
+        } else if (config.spawn.perWorld) {
+            // perWorld=true, no name → find nearest spawn
+            TransformComponent preCheck = store.getComponent(ref, TransformComponent.getComponentType());
+            if (preCheck == null) {
+                ctx.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("couldNotGetPosition"), "#FF5555"));
+                return;
+            }
+            Vector3d prePos = preCheck.getPosition();
+            spawn = spawnStorage.getNearestSpawn(targetWorldName, prePos.getX(), prePos.getZ());
+            if (spawn == null) {
+                ctx.sendMessage(MessageFormatter.formatWithFallback(
+                    configManager.getMessage("spawnNoSpawn") + " (No spawn set for world: " + targetWorldName + ")", "#FF5555"));
+                return;
+            }
+        } else {
+            // perWorld=false → primary spawn of mainWorld
+            spawn = spawnStorage.getPrimarySpawn(targetWorldName);
+            if (spawn == null) {
+                ctx.sendMessage(MessageFormatter.formatWithFallback(
+                    configManager.getMessage("spawnNoSpawn") + " (No spawn set for main world: " + targetWorldName + ")", "#FF5555"));
+                return;
+            }
         }
         
         // Get current position for /back and warmup
@@ -115,50 +156,78 @@ public class HytaleSpawnCommand extends AbstractPlayerCommand {
         Location currentLoc = new Location(
             world.getName(),
             currentPos.getX(), currentPos.getY(), currentPos.getZ(),
-            currentRot.y, 0f  // yaw only, pitch=0 to prevent tilt
+            currentRot.y, 0f
         );
         
-        // Get target world (may be different from current world if perWorld=false)
         World targetWorld = Universe.get().getWorld(targetWorldName);
         if (targetWorld == null) {
-            targetWorld = world; // Fallback to current world if target not found
+            targetWorld = world;
         }
         final World finalTargetWorld = targetWorld;
         
-        // Spawn position and rotation
         Vector3d spawnPos = new Vector3d(spawn.x, spawn.y, spawn.z);
         Vector3f spawnRot = new Vector3f(0, spawn.yaw, 0);
         
-        // Capture effective cooldown for use in lambda
         final int finalEffectiveCooldown = effectiveCooldown;
+        final SpawnStorage.SpawnData finalSpawn = spawn;
         
-        // Define the actual teleport action - always use PlayerRef for fresh refs
         Runnable doTeleport = () -> {
-            // Save location for /back
             backService.pushLocation(playerId, currentLoc);
 
             TeleportUtil.safeTeleport(world, finalTargetWorld, spawnPos, spawnRot, player,
                 () -> {
                     CommandPermissionUtil.chargeCost(ctx, player, "spawn", config.spawn.cost);
-                    player.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("spawnTeleported"), "#55FF55"));
+                    // Show named message if multi-spawn, basic message if single
+                    boolean isMultiSpawn = config.spawn.perWorld && spawnStorage.getSpawnCount(targetWorldName) > 1;
+                    if (isMultiSpawn && finalSpawn.name != null) {
+                        player.sendMessage(MessageFormatter.formatWithFallback(
+                            configManager.getMessage("spawnTeleportedNamed", "name", finalSpawn.name), "#55FF55"));
+                    } else {
+                        player.sendMessage(MessageFormatter.formatWithFallback(
+                            configManager.getMessage("spawnTeleported"), "#55FF55"));
+                    }
                 },
                 () -> {
                     player.sendMessage(MessageFormatter.formatWithFallback("&cTeleport failed - destination chunk could not be loaded.", "#FF5555"));
                 }
             );
             
-            // Set cooldown using effective value
             if (finalEffectiveCooldown > 0) {
                 cooldownService.setCooldown(COMMAND_NAME, playerId, finalEffectiveCooldown);
             }
         };
         
-        // Get effective warmup (check bypass permission)
         int warmupSeconds = CommandPermissionUtil.getEffectiveWarmup(playerId, COMMAND_NAME, config.spawn.warmupSeconds);
         
         if (warmupSeconds > 0) {
             ctx.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("spawnWarmup", "seconds", String.valueOf(warmupSeconds)), "#FFAA00"));
         }
         warmupService.startWarmup(player, currentPos, warmupSeconds, doTeleport, COMMAND_NAME, world, store, ref);
+    }
+    
+    /**
+     * Variant: /spawn <name>
+     */
+    private static class SpawnWithNameCommand extends AbstractPlayerCommand {
+        private final BackService backService;
+        private final RequiredArg<String> nameArg;
+        
+        SpawnWithNameCommand(BackService backService) {
+            super(COMMAND_NAME);
+            this.backService = backService;
+            this.nameArg = withRequiredArg("name", "Spawn point name", SimpleStringArg.SPAWN_NAME);
+        }
+        
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+        
+        @Override
+        protected void execute(@Nonnull CommandContext ctx, @Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref,
+                              @Nonnull PlayerRef player, @Nonnull World world) {
+            String name = ctx.get(nameArg);
+            HytaleSpawnCommand.doSpawn(ctx, store, ref, player, world, name, backService);
+        }
     }
 }

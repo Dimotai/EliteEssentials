@@ -145,7 +145,7 @@ public class AliasService {
      */
     private static final Map<String, String> COMMAND_PERMISSION_MAP = new HashMap<>();
     private static final Set<String> ADMIN_ONLY_COMMANDS = Set.of(
-        "setspawn", "tphere", "warpadmin", "warpsetperm", "warpsetdesc",
+        "setspawn", "delspawn", "spawns", "tphere", "warpadmin", "warpsetperm", "warpsetdesc",
         "kitcreate", "kitdelete", "broadcast", "clearchat", "eco",
         "sleeppercent", "eliteessentials", "alias", "mute", "unmute",
         "ban", "unban", "tempban", "ipban", "unipban", "freeze",
@@ -199,6 +199,8 @@ public class AliasService {
         COMMAND_PERMISSION_MAP.put("chats", com.eliteessentials.permissions.Permissions.CHATS_LIST);
         // Admin commands
         COMMAND_PERMISSION_MAP.put("setspawn", com.eliteessentials.permissions.Permissions.SETSPAWN);
+        COMMAND_PERMISSION_MAP.put("delspawn", com.eliteessentials.permissions.Permissions.DELSPAWN);
+        COMMAND_PERMISSION_MAP.put("spawns", com.eliteessentials.permissions.Permissions.SPAWNS);
         COMMAND_PERMISSION_MAP.put("tphere", com.eliteessentials.permissions.Permissions.TPHERE);
         COMMAND_PERMISSION_MAP.put("warpadmin", com.eliteessentials.permissions.Permissions.WARPADMIN);
         COMMAND_PERMISSION_MAP.put("broadcast", com.eliteessentials.permissions.Permissions.BROADCAST);
@@ -432,7 +434,21 @@ public class AliasService {
             }
             
             String targetWorldName = config.spawn.perWorld ? world.getName() : config.spawn.mainWorld;
-            com.eliteessentials.storage.SpawnStorage.SpawnData s = spawnStorage.getSpawn(targetWorldName);
+            
+            // Resolve spawn: nearest when perWorld=true with multiple spawns, primary otherwise
+            com.eliteessentials.storage.SpawnStorage.SpawnData s;
+            if (config.spawn.perWorld) {
+                TransformComponent preCheck = store.getComponent(ref, TransformComponent.getComponentType());
+                if (preCheck != null) {
+                    Vector3d prePos = preCheck.getPosition();
+                    s = spawnStorage.getNearestSpawn(targetWorldName, prePos.getX(), prePos.getZ());
+                } else {
+                    s = spawnStorage.getPrimarySpawn(targetWorldName);
+                }
+            } else {
+                s = spawnStorage.getPrimarySpawn(targetWorldName);
+            }
+            
             if (s == null) { 
                 ctx.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("spawnNoSpawn"), "#FF5555")); 
                 return; 
@@ -458,6 +474,7 @@ public class AliasService {
             if (targetWorld == null) targetWorld = world;
             final World finalTargetWorld = targetWorld;
             final boolean finalSilent = silent;
+            final com.eliteessentials.storage.SpawnStorage.SpawnData finalSpawn = s;
             
             Vector3d spawnPos = new Vector3d(s.x, s.y, s.z);
             Vector3f spawnRot = new Vector3f(0, s.yaw, 0);
@@ -467,7 +484,13 @@ public class AliasService {
                 TeleportUtil.safeTeleport(world, finalTargetWorld, spawnPos, spawnRot, player,
                     () -> {
                         if (!finalSilent) {
-                            ctx.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("spawnTeleported"), "#55FF55"));
+                            boolean isMultiSpawn = config.spawn.perWorld && spawnStorage.getSpawnCount(targetWorldName) > 1;
+                            if (isMultiSpawn && finalSpawn.name != null) {
+                                ctx.sendMessage(MessageFormatter.formatWithFallback(
+                                    configManager.getMessage("spawnTeleportedNamed", "name", finalSpawn.name), "#55FF55"));
+                            } else {
+                                ctx.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("spawnTeleported"), "#55FF55"));
+                            }
                         }
                     },
                     () -> {

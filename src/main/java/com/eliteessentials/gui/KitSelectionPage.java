@@ -105,11 +105,12 @@ public class KitSelectionPage extends InteractiveCustomUIPage<KitSelectionPage.K
             return;
         }
 
-        // Check cooldown (unless player has bypass)
-        boolean canBypass = PermissionService.get().hasPermission(playerId, Permissions.KIT_BYPASS_COOLDOWN);
+        // Check bypass permissions
+        boolean canBypassCooldown = PermissionService.get().hasPermission(playerId, Permissions.KIT_BYPASS_COOLDOWN);
+        boolean canBypassOnetime = PermissionService.get().hasPermission(playerId, Permissions.KIT_BYPASS_ONETIME);
         
-        // Check one-time kit (bypass doesn't apply to one-time restrictions)
-        if (kit.isOnetime() && kitService.hasClaimedOnetime(playerId, kit.getId())) {
+        // Check one-time kit (unless player has bypass)
+        if (kit.isOnetime() && !canBypassOnetime && kitService.hasClaimedOnetime(playerId, kit.getId())) {
             if (configManager.isDebugEnabled()) {
                 logger.info("Player " + playerId + " tried to claim one-time kit '" + kit.getId() + "' but already claimed it");
             }
@@ -119,7 +120,7 @@ public class KitSelectionPage extends InteractiveCustomUIPage<KitSelectionPage.K
         }
         
         // Check cooldown (can be bypassed)
-        if (!canBypass) {
+        if (!canBypassCooldown) {
             long remaining = kitService.getRemainingCooldown(playerId, kit.getId());
             if (remaining > 0) {
                 sendMessage(configManager.getMessage("kitOnCooldown", 
@@ -161,8 +162,8 @@ public class KitSelectionPage extends InteractiveCustomUIPage<KitSelectionPage.K
             CommandExecutor.executeCommands(kit.getCommands(), playerRef.getUsername(), playerId, "Kit-" + kit.getId());
         }
 
-        // Set cooldown or mark as claimed
-        if (kit.isOnetime()) {
+        // Set cooldown or mark as claimed (skip marking one-time when bypassing)
+        if (kit.isOnetime() && !canBypassOnetime) {
             if (configManager.isDebugEnabled()) {
                 logger.info("Marking kit '" + kit.getId() + "' as claimed for player " + playerId);
             }
@@ -286,6 +287,7 @@ public class KitSelectionPage extends InteractiveCustomUIPage<KitSelectionPage.K
             boolean hasPermission = PermissionService.get().canUseEveryoneCommand(playerId, kitPermission, true) ||
                                    PermissionService.get().isAdmin(playerId);
             boolean canBypassCooldown = PermissionService.get().hasPermission(playerId, Permissions.KIT_BYPASS_COOLDOWN);
+            boolean canBypassOnetime = PermissionService.get().hasPermission(playerId, Permissions.KIT_BYPASS_ONETIME);
 
             String statusText;
             boolean canClaim = true;
@@ -293,7 +295,7 @@ public class KitSelectionPage extends InteractiveCustomUIPage<KitSelectionPage.K
             if (!hasPermission) {
                 statusText = configManager.getMessage("gui.KitStatusLocked");
                 canClaim = false;
-            } else if (kit.isOnetime() && kitService.hasClaimedOnetime(playerId, kit.getId())) {
+            } else if (kit.isOnetime() && !canBypassOnetime && kitService.hasClaimedOnetime(playerId, kit.getId())) {
                 statusText = configManager.getMessage("gui.KitStatusClaimed");
                 canClaim = false;
             } else {

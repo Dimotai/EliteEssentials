@@ -192,8 +192,21 @@ public class PluginConfig {
         messages.put("spawnNoSpawn", "&cNo spawn point set. An admin must use &e/setspawn &cfirst.");
         messages.put("spawnNotFound", "&cCould not find spawn point.");
         messages.put("spawnTeleported", "&aTeleported to spawn!");
+        messages.put("spawnTeleportedNamed", "&aTeleported to spawn '&e{name}&a'!");
         messages.put("spawnSet", "&aSpawn set for world '&e{world}&a' at &e{location}&a.");
+        messages.put("spawnSetNamed", "&aSpawn '&e{name}&a' set for world '&e{world}&a' at &e{location}&a.");
         messages.put("spawnWarmup", "&eTeleporting to spawn in &a{seconds} &eseconds... Stand still!");
+        messages.put("spawnDeleted", "&aSpawn '&e{name}&a' deleted from world '&e{world}&a'.");
+        messages.put("spawnDeleteNotFound", "&cSpawn '&e{name}&c' not found in this world.");
+        messages.put("spawnDeletePrimary", "&cCannot delete the primary spawn. Set another spawn as primary first, or use /delspawn to remove the last one.");
+        messages.put("spawnLimitReached", "&cMaximum spawn points reached for this world (&e{max}&c).");
+        messages.put("spawnListHeader", "&b&l=== &fSpawn Points: {world} &b&l===");
+        messages.put("spawnListEntry", "&7  {name} &8- &f{location}{primary}{protection}");
+        messages.put("spawnListPrimary", " &a[primary]");
+        messages.put("spawnListProtected", " &e[protected]");
+        messages.put("spawnListEmpty", "&7No spawn points set in this world.");
+        messages.put("spawnRespawnedAt", "&7You respawned at spawn '&e{name}&7'.");
+        messages.put("spawnMultiSpawnDisabled", "&cMulti-spawn requires perWorld mode. Set &espawn.perWorld = true &cin config.");
         
         // ==================== RTP ====================
         messages.put("rtpSearching", "&eSearching for a safe location...");
@@ -856,6 +869,13 @@ public class PluginConfig {
          * Example: ["pvparena_world", "arena*"]
          */
         public java.util.List<String> respawnExcludedWorlds = new java.util.ArrayList<>();
+        
+        /**
+         * Maximum number of spawn points per world (multi-spawn mode).
+         * Only applies when perWorld=true. Set to -1 for unlimited.
+         * When perWorld=false, only one spawn per world is used (the primary).
+         */
+        public int maxSpawnsPerWorld = 10;
     }
 
     // ==================== WARPS ====================

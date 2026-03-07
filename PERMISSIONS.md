@@ -15,8 +15,10 @@ Commands are either available to Everyone or Admin only:
 | `/delhome [name]` | Delete a home | Everyone |
 | `/homes` | List your homes (GUI) | Everyone |
 | `/back` | Return to previous location | Everyone |
-| `/spawn` | Teleport to spawn | Everyone |
-| `/setspawn` | Set spawn location | Admin |
+| `/spawn [name]` | Teleport to nearest/named spawn | Everyone |
+| `/setspawn [name]` | Set spawn location (named when perWorld=true) | Admin |
+| `/delspawn <name>` | Delete a named spawn point | Admin |
+| `/spawns` | List spawn points in current world | Admin |
 | `/rtp` | Random teleport | Everyone |
 | `/tpa <player>` | Request teleport | Everyone |
 | `/tpahere <player>` | Request player to you | Everyone |
@@ -139,6 +141,8 @@ eliteessentials
 │   ├── spawn                       # Spawn category
 │   │   ├── use                     # /spawn command
 │   │   ├── set                     # /setspawn command (Admin)
+│   │   ├── delete                  # /delspawn command (Admin)
+│   │   ├── list                    # /spawns command (Admin)
 │   │   ├── protection
 │   │   │   └── bypass              # Bypass spawn protection
 │   │   └── bypass
@@ -152,7 +156,8 @@ eliteessentials
 │   │   ├── create                  # /kitcreate (Admin)
 │   │   ├── delete                  # /kitdelete (Admin)
 │   │   └── bypass
-│   │       └── cooldown            # Bypass kit cooldowns
+│   │       ├── cooldown            # Bypass kit cooldowns
+│   │       └── onetime             # Bypass one-time kit restrictions
 │   │
 │   ├── misc                        # Utility commands
 │   │   ├── msg                     # /msg command
@@ -268,8 +273,10 @@ eliteessentials
 
 | Permission | Description |
 |------------|-------------|
-| `eliteessentials.command.spawn.use` | Teleport to spawn |
+| `eliteessentials.command.spawn.use` | Teleport to spawn (nearest or named) |
 | `eliteessentials.command.spawn.set` | Set spawn location (Admin) |
+| `eliteessentials.command.spawn.delete` | Delete a spawn point (Admin) |
+| `eliteessentials.command.spawn.list` | List spawn points (Admin) |
 | `eliteessentials.command.spawn.protection.bypass` | Bypass spawn protection |
 | `eliteessentials.command.spawn.bypass.cooldown` | Bypass spawn cooldown |
 | `eliteessentials.command.spawn.bypass.warmup` | Bypass spawn warmup |
@@ -284,6 +291,7 @@ eliteessentials
 | `eliteessentials.command.kit.create` | Create kits (Admin) |
 | `eliteessentials.command.kit.delete` | Delete kits (Admin) |
 | `eliteessentials.command.kit.bypass.cooldown` | Bypass kit cooldowns |
+| `eliteessentials.command.kit.bypass.onetime` | Bypass one-time kit restrictions (claim repeatedly) |
 
 ### Utility Commands
 
@@ -387,6 +395,7 @@ eliteessentials.command.home.bypass.cooldown
 eliteessentials.command.tp.cooldown.rtp.300
 eliteessentials.command.warp.bypass.cooldown
 eliteessentials.command.kit.bypass.cooldown
+eliteessentials.command.kit.bypass.onetime
 eliteessentials.bypass.cost
 ```
 

@@ -165,17 +165,102 @@ public class RespawnListener extends RefChangeSystem<EntityStore, DeathComponent
             return;
         }
 
-        // --- Same-world respawn is now handled by Hytale's native WorldSpawnPoint ---
-        // We synced our /setspawn to the world's ISpawnProvider, so Hytale's respawn
-        // controller will teleport bedless players to the right spot automatically.
-        // We only need to intervene for CROSS-WORLD respawn (perWorld=false, different world).
+        // --- Same-world respawn handling ---
+        // When perWorld=true with multiple spawn points, we need to find the nearest
+        // spawn to the death location (Hytale's native provider only knows one spawn).
+        // When only one spawn exists, the native provider handles it.
 
         if (config.spawn.perWorld) {
-            // perWorld=true: each world has its own spawn, Hytale handles it natively
-            if (debugEnabled) {
-                logger.info("[Respawn] perWorld=true, native spawn provider handles same-world respawn.");
-                logger.info("[Respawn] ========================================");
+            // Check if we have multiple spawns in this world - if so, nearest spawn logic applies
+            java.util.List<SpawnStorage.SpawnData> worldSpawns = spawnStorage.getSpawns(currentWorldName);
+            if (worldSpawns.size() <= 1) {
+                // Single spawn or no spawn - native provider handles it
+                if (debugEnabled) {
+                    logger.info("[Respawn] perWorld=true, single spawn - native provider handles same-world respawn.");
+                    logger.info("[Respawn] ========================================");
+                }
+                return;
             }
+            
+            // Multiple spawns - find nearest to death location
+            com.hypixel.hytale.server.core.modules.entity.component.TransformComponent deathTransform = null;
+            try {
+                deathTransform = store.getComponent(ref, com.hypixel.hytale.server.core.modules.entity.component.TransformComponent.getComponentType());
+            } catch (Exception ex) {
+                // ignore
+            }
+            
+            SpawnStorage.SpawnData nearestSpawn;
+            if (deathTransform != null) {
+                Vector3d deathPos = deathTransform.getPosition();
+                nearestSpawn = spawnStorage.getNearestSpawn(currentWorldName, deathPos.getX(), deathPos.getZ());
+            } else {
+                nearestSpawn = spawnStorage.getPrimarySpawn(currentWorldName);
+            }
+            
+            if (nearestSpawn == null) {
+                if (debugEnabled) {
+                    logger.info("[Respawn] perWorld=true, no spawn found for world '" + currentWorldName + "'.");
+                    logger.info("[Respawn] ========================================");
+                }
+                return;
+            }
+            
+            // Check if nearest is the primary - if so, native provider already handles it
+            if (nearestSpawn.primary) {
+                if (debugEnabled) {
+                    logger.info("[Respawn] Nearest spawn is primary - native provider handles it.");
+                    logger.info("[Respawn] ========================================");
+                }
+                return;
+            }
+            
+            // Nearest spawn is NOT the primary - we need to override the native respawn
+            if (debugEnabled) {
+                logger.info("[Respawn] Multi-spawn: nearest spawn '" + nearestSpawn.name + 
+                    "' at " + String.format("%.1f, %.1f, %.1f", nearestSpawn.x, nearestSpawn.y, nearestSpawn.z));
+            }
+            
+            final Vector3d nearSpawnPos = new Vector3d(nearestSpawn.x, nearestSpawn.y, nearestSpawn.z);
+            final Vector3f nearSpawnRot = new Vector3f(0, nearestSpawn.yaw, 0);
+            final Store<EntityStore> storeFinal2 = store;
+            final Ref<EntityStore> refFinal2 = ref;
+            final World deathWorldFinal2 = deathWorld;
+            final String nearestName = nearestSpawn.name;
+            
+            CompletableFuture
+                    .delayedExecutor(1L, TimeUnit.SECONDS)
+                    .execute(() -> {
+                        try {
+                            if (!deathWorldFinal2.isAlive()) return;
+                            deathWorldFinal2.execute(() -> {
+                                try {
+                                    if (!refFinal2.isValid()) return;
+                                    if (playerId != null && !TeleportGuard.get().tryAcquireAutomatic(playerId, "Respawn-NearestSpawn", debugEnabled)) return;
+                                    
+                                    com.hypixel.hytale.server.core.modules.entity.teleport.Teleport teleport = 
+                                        new com.hypixel.hytale.server.core.modules.entity.teleport.Teleport(deathWorldFinal2, nearSpawnPos, nearSpawnRot);
+                                    storeFinal2.putComponent(refFinal2, com.hypixel.hytale.server.core.modules.entity.teleport.Teleport.getComponentType(), teleport);
+                                    
+                                    // Notify the player which spawn they respawned at
+                                    if (playerRef != null && nearestName != null) {
+                                        var configManager = EliteEssentials.getInstance().getConfigManager();
+                                        playerRef.sendMessage(com.eliteessentials.util.MessageFormatter.formatWithFallback(
+                                            configManager.getMessage("spawnRespawnedAt", "name", nearestName), "#AAAAAA"));
+                                    }
+                                    
+                                    if (debugEnabled) {
+                                        logger.info("[Respawn] Teleported to nearest spawn '" + nearestName + "'");
+                                        logger.info("[Respawn] ========================================");
+                                    }
+                                } catch (Throwable t) {
+                                    logger.warning("[Respawn] Failed nearest-spawn teleport: " + t.getMessage());
+                                }
+                            });
+                        } catch (Throwable t) {
+                            logger.warning("[Respawn] Failed to schedule nearest-spawn teleport: " + t.getMessage());
+                        }
+                    });
             return;
         }
 

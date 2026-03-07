@@ -274,6 +274,8 @@ public class LuckPermsIntegration {
         // Spawn commands
         perms.add(Permissions.SPAWN);
         perms.add(Permissions.SETSPAWN);
+        perms.add(Permissions.DELSPAWN);
+        perms.add(Permissions.SPAWNS);
         perms.add("eliteessentials.command.spawn.*");
         perms.add(Permissions.SPAWN_BYPASS_COOLDOWN);
         perms.add(Permissions.SPAWN_BYPASS_WARMUP);
@@ -314,6 +316,7 @@ public class LuckPermsIntegration {
         perms.add(Permissions.KIT_CREATE);
         perms.add(Permissions.KIT_DELETE);
         perms.add(Permissions.KIT_BYPASS_COOLDOWN);
+        perms.add(Permissions.KIT_BYPASS_ONETIME);
         perms.add("eliteessentials.command.kit.*");
         // Note: Kit-specific permissions (e.g., eliteessentials.command.kit.starter) 
         // are registered dynamically when kits are loaded from kits.json

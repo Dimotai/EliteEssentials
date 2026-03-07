@@ -62,7 +62,11 @@ public class HytaleHelpCommand extends CommandBase {
         }
         
         if (config.spawn.enabled && canUse(sender, Permissions.SPAWN, true)) {
-            available.add(new CommandInfo("/spawn", "Teleport to spawn"));
+            if (config.spawn.perWorld) {
+                available.add(new CommandInfo("/spawn [name]", "Teleport to nearest/named spawn"));
+            } else {
+                available.add(new CommandInfo("/spawn", "Teleport to spawn"));
+            }
         }
         
         if (config.warps.enabled && canUse(sender, Permissions.WARPS, true)) {
@@ -200,7 +204,9 @@ public class HytaleHelpCommand extends CommandBase {
         
         // ==================== ADMIN COMMANDS ====================
         if (isAdmin) {
-            available.add(new CommandInfo("/setspawn", "Set server spawn point"));
+            available.add(new CommandInfo("/setspawn [name]", "Set server spawn point"));
+            available.add(new CommandInfo("/delspawn <name>", "Delete a spawn point"));
+            available.add(new CommandInfo("/spawns", "List spawn points in current world"));
             available.add(new CommandInfo("/tphere <player>", "Teleport player to you"));
             
             if (config.warps.enabled) {

@@ -7,42 +7,49 @@ import com.eliteessentials.storage.SpawnStorage;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3i;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Service for managing spawn protection.
- * Protects blocks within a configurable radius of spawn from being modified.
- * Supports per-world spawn protection - each world with a /setspawn is protected.
+ * Protects blocks within a configurable radius of spawn points from being modified.
+ * Supports per-world, multi-spawn protection - each spawn point with protection=true
+ * gets its own protection zone.
  */
 public class SpawnProtectionService {
 
     private final ConfigManager configManager;
     
-    // Per-world spawn coordinates
-    private final Map<String, SpawnLocation> worldSpawns = new HashMap<>();
+    // Per-world spawn coordinates (supports multiple per world)
+    private final Map<String, List<SpawnLocation>> worldSpawns = new HashMap<>();
 
     public SpawnProtectionService(ConfigManager configManager) {
         this.configManager = configManager;
     }
 
     /**
-     * Set the spawn location for a specific world.
+     * Set a single spawn location for a world (backward compatible).
+     * Replaces all spawn locations for that world with just this one.
      */
     public void setSpawnLocation(String worldName, double x, double y, double z) {
-        worldSpawns.put(worldName, new SpawnLocation(x, y, z));
+        List<SpawnLocation> list = new ArrayList<>();
+        list.add(new SpawnLocation(x, y, z));
+        worldSpawns.put(worldName, list);
     }
     
     /**
      * Load spawn locations from SpawnStorage.
+     * Only loads spawn points that have protection=true.
      */
     public void loadFromStorage(SpawnStorage spawnStorage) {
         worldSpawns.clear();
-        for (String worldName : spawnStorage.getWorldsWithSpawn()) {
-            SpawnStorage.SpawnData spawn = spawnStorage.getSpawn(worldName);
-            if (spawn != null) {
-                worldSpawns.put(worldName, new SpawnLocation(spawn.x, spawn.y, spawn.z));
+        Map<String, List<SpawnStorage.SpawnData>> protectedSpawns = spawnStorage.getAllProtectedSpawns();
+        for (Map.Entry<String, List<SpawnStorage.SpawnData>> entry : protectedSpawns.entrySet()) {
+            List<SpawnLocation> locations = new ArrayList<>();
+            for (SpawnStorage.SpawnData spawn : entry.getValue()) {
+                locations.add(new SpawnLocation(spawn.x, spawn.y, spawn.z));
+            }
+            if (!locations.isEmpty()) {
+                worldSpawns.put(entry.getKey(), locations);
             }
         }
     }
@@ -58,7 +65,8 @@ public class SpawnProtectionService {
      * Check if a specific world has spawn protection.
      */
     public boolean hasSpawnInWorld(String worldName) {
-        return worldSpawns.containsKey(worldName);
+        List<SpawnLocation> list = worldSpawns.get(worldName);
+        return list != null && !list.isEmpty();
     }
 
     /**
@@ -84,7 +92,6 @@ public class SpawnProtectionService {
     
     /**
      * Check if item pickups are disabled in spawn area.
-     * NOTE: May not work properly due to Hytale API limitations.
      */
     public boolean isItemPickupProtectionEnabled() {
         return configManager.getConfig().spawnProtection.disableItemPickup;
@@ -105,56 +112,19 @@ public class SpawnProtectionService {
     }
 
     /**
-     * Check if X/Z coordinates are within the protected spawn area of a specific world.
+     * Check if X/Z coordinates are within ANY protected spawn area of a specific world.
      */
     public boolean isInProtectedArea(String worldName, int x, int z) {
         if (!isEnabled()) return false;
         
-        SpawnLocation spawn = worldSpawns.get(worldName);
-        if (spawn == null) return false;
+        List<SpawnLocation> spawns = worldSpawns.get(worldName);
+        if (spawns == null) return false;
         
         int radius = getRadius();
-        double dx = Math.abs(x - spawn.x);
-        double dz = Math.abs(z - spawn.z);
-
-        return dx <= radius && dz <= radius;
-    }
-
-    /**
-     * Check if a block position is within the protected spawn area of a specific world.
-     */
-    public boolean isInProtectedArea(String worldName, Vector3i blockPos) {
-        if (!isEnabled()) return false;
-        
-        SpawnLocation spawn = worldSpawns.get(worldName);
-        if (spawn == null) return false;
-        
-        int radius = getRadius();
-        double dx = Math.abs(blockPos.getX() - spawn.x);
-        double dz = Math.abs(blockPos.getZ() - spawn.z);
-
-        // Square radius check (X/Z only)
-        if (dx > radius || dz > radius) {
-            return false;
-        }
-
-        // Check Y range if configured
-        return isInYRange(blockPos.getY());
-    }
-    
-    /**
-     * Check if a block position is within ANY protected spawn area.
-     * Used when world name is not available.
-     */
-    public boolean isInProtectedArea(Vector3i blockPos) {
-        if (!isEnabled()) return false;
-        
-        for (SpawnLocation spawn : worldSpawns.values()) {
-            int radius = getRadius();
-            double dx = Math.abs(blockPos.getX() - spawn.x);
-            double dz = Math.abs(blockPos.getZ() - spawn.z);
-
-            if (dx <= radius && dz <= radius && isInYRange(blockPos.getY())) {
+        for (SpawnLocation spawn : spawns) {
+            double dx = Math.abs(x - spawn.x);
+            double dz = Math.abs(z - spawn.z);
+            if (dx <= radius && dz <= radius) {
                 return true;
             }
         }
@@ -162,39 +132,84 @@ public class SpawnProtectionService {
     }
 
     /**
-     * Check if an entity position is within the protected spawn area of a specific world.
+     * Check if a block position is within ANY protected spawn area of a specific world.
+     */
+    public boolean isInProtectedArea(String worldName, Vector3i blockPos) {
+        if (!isEnabled()) return false;
+        
+        List<SpawnLocation> spawns = worldSpawns.get(worldName);
+        if (spawns == null) return false;
+        
+        int radius = getRadius();
+        for (SpawnLocation spawn : spawns) {
+            double dx = Math.abs(blockPos.getX() - spawn.x);
+            double dz = Math.abs(blockPos.getZ() - spawn.z);
+            
+            if (dx <= radius && dz <= radius && isInYRange(blockPos.getY())) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Check if a block position is within ANY protected spawn area (any world).
+     * Used when world name is not available.
+     */
+    public boolean isInProtectedArea(Vector3i blockPos) {
+        if (!isEnabled()) return false;
+        
+        int radius = getRadius();
+        for (List<SpawnLocation> spawns : worldSpawns.values()) {
+            for (SpawnLocation spawn : spawns) {
+                double dx = Math.abs(blockPos.getX() - spawn.x);
+                double dz = Math.abs(blockPos.getZ() - spawn.z);
+
+                if (dx <= radius && dz <= radius && isInYRange(blockPos.getY())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if an entity position is within ANY protected spawn area of a specific world.
      */
     public boolean isInProtectedArea(String worldName, Vector3d entityPos) {
         if (!isEnabled()) return false;
         
-        SpawnLocation spawn = worldSpawns.get(worldName);
-        if (spawn == null) return false;
+        List<SpawnLocation> spawns = worldSpawns.get(worldName);
+        if (spawns == null) return false;
         
         int radius = getRadius();
-        double dx = Math.abs(entityPos.getX() - spawn.x);
-        double dz = Math.abs(entityPos.getZ() - spawn.z);
-
-        if (dx > radius || dz > radius) {
-            return false;
-        }
-
-        return isInYRange((int) entityPos.getY());
-    }
-    
-    /**
-     * Check if an entity position is within ANY protected spawn area.
-     * Used when world name is not available.
-     */
-    public boolean isInProtectedArea(Vector3d entityPos) {
-        if (!isEnabled()) return false;
-        
-        for (SpawnLocation spawn : worldSpawns.values()) {
-            int radius = getRadius();
+        for (SpawnLocation spawn : spawns) {
             double dx = Math.abs(entityPos.getX() - spawn.x);
             double dz = Math.abs(entityPos.getZ() - spawn.z);
 
             if (dx <= radius && dz <= radius && isInYRange((int) entityPos.getY())) {
                 return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Check if an entity position is within ANY protected spawn area (any world).
+     * Used when world name is not available.
+     */
+    public boolean isInProtectedArea(Vector3d entityPos) {
+        if (!isEnabled()) return false;
+        
+        int radius = getRadius();
+        for (List<SpawnLocation> spawns : worldSpawns.values()) {
+            for (SpawnLocation spawn : spawns) {
+                double dx = Math.abs(entityPos.getX() - spawn.x);
+                double dz = Math.abs(entityPos.getZ() - spawn.z);
+
+                if (dx <= radius && dz <= radius && isInYRange((int) entityPos.getY())) {
+                    return true;
+                }
             }
         }
         return false;
@@ -207,7 +222,6 @@ public class SpawnProtectionService {
         int minY = configManager.getConfig().spawnProtection.minY;
         int maxY = configManager.getConfig().spawnProtection.maxY;
 
-        // If both are -1, Y range is disabled (protect all Y levels)
         if (minY == -1 && maxY == -1) {
             return true;
         }
@@ -220,7 +234,6 @@ public class SpawnProtectionService {
 
     /**
      * Check if a player can bypass spawn protection (for block breaking/placing).
-     * Note: This does NOT bypass damage protection - admins should still be protected from damage.
      */
     public boolean canBypass(UUID playerId) {
         return PermissionService.get().hasPermission(playerId, Permissions.SPAWN_PROTECTION_BYPASS);
@@ -228,26 +241,32 @@ public class SpawnProtectionService {
     
     /**
      * Check if a player can bypass damage protection.
-     * By default, nobody bypasses damage protection (even admins are protected).
-     * This is intentional - you want admins to be safe at spawn too!
+     * Nobody bypasses damage protection by default.
      */
     public boolean canBypassDamageProtection(UUID playerId) {
-        // Nobody bypasses damage protection by default - everyone is protected at spawn
         return false;
     }
     
     /**
-     * Get spawn location for a world (for debugging).
+     * Get spawn locations for a world (for debugging).
+     * Returns the first spawn location for backward compatibility.
      */
     public SpawnLocation getSpawnForWorld(String worldName) {
-        return worldSpawns.get(worldName);
+        List<SpawnLocation> list = worldSpawns.get(worldName);
+        return (list != null && !list.isEmpty()) ? list.get(0) : null;
     }
     
     /**
      * Get all worlds with spawn protection.
      */
-    public java.util.Set<String> getProtectedWorlds() {
-        return worldSpawns.keySet();
+    public Set<String> getProtectedWorlds() {
+        Set<String> result = new HashSet<>();
+        for (Map.Entry<String, List<SpawnLocation>> entry : worldSpawns.entrySet()) {
+            if (!entry.getValue().isEmpty()) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
     }
 
     /**

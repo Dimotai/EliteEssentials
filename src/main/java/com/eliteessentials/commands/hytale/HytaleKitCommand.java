@@ -40,6 +40,7 @@ import java.util.logging.Logger;
  * - eliteessentials.command.kit.gui - Permission to open the kit GUI
  * - eliteessentials.command.kit.<kitname> - Access specific kit
  * - eliteessentials.command.kit.bypass.cooldown - Bypass kit cooldowns
+ * - eliteessentials.command.kit.bypass.onetime - Bypass one-time kit restrictions
  */
 public class HytaleKitCommand extends AbstractPlayerCommand {
 
@@ -165,11 +166,12 @@ public class HytaleKitCommand extends AbstractPlayerCommand {
             return;
         }
 
-        // Check cooldown bypass permission
-        boolean canBypass = PermissionService.get().hasPermission(playerId, Permissions.KIT_BYPASS_COOLDOWN);
+        // Check bypass permissions
+        boolean canBypassCooldown = PermissionService.get().hasPermission(playerId, Permissions.KIT_BYPASS_COOLDOWN);
+        boolean canBypassOnetime = PermissionService.get().hasPermission(playerId, Permissions.KIT_BYPASS_ONETIME);
 
-        // Check one-time kit (bypass doesn't apply to one-time restrictions)
-        if (kit.isOnetime() && kitService.hasClaimedOnetime(playerId, kit.getId())) {
+        // Check one-time kit (unless player has bypass)
+        if (kit.isOnetime() && !canBypassOnetime && kitService.hasClaimedOnetime(playerId, kit.getId())) {
             if (configManager.isDebugEnabled()) {
                 logger.info("Player " + playerId + " tried to claim one-time kit '" + kit.getId() + "' but already claimed it");
             }
@@ -178,7 +180,7 @@ public class HytaleKitCommand extends AbstractPlayerCommand {
         }
 
         // Check cooldown (can be bypassed)
-        if (!canBypass) {
+        if (!canBypassCooldown) {
             long remaining = kitService.getRemainingCooldown(playerId, kit.getId());
             if (remaining > 0) {
                 ctx.sendMessage(MessageFormatter.formatWithFallback(
@@ -224,8 +226,8 @@ public class HytaleKitCommand extends AbstractPlayerCommand {
             CommandExecutor.executeCommands(kit.getCommands(), player.getUsername(), playerId, "Kit-" + kit.getId());
         }
 
-        // Set cooldown or mark as claimed
-        if (kit.isOnetime()) {
+        // Set cooldown or mark as claimed (skip marking one-time when bypassing)
+        if (kit.isOnetime() && !canBypassOnetime) {
             if (configManager.isDebugEnabled()) {
                 logger.info("Marking kit '" + kit.getId() + "' as claimed for player " + playerId);
             }
