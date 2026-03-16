@@ -217,6 +217,9 @@ public final class Permissions {
     public static final String SETFIRSTJOINSPAWN = SPAWN_CATEGORY + ".setfirstjoin";
     public static final String DELFIRSTJOINSPAWN = SPAWN_CATEGORY + ".delfirstjoin";
 
+    // Greetings
+    public static final String GREETINGS_ADMIN = ADMIN_BASE + ".greetings";
+
     // ==================== SPAWN PROTECTION ====================
     public static final String SPAWN_PROTECTION_BYPASS = SPAWN_CATEGORY + ".protection.bypass";
 
@@ -239,6 +242,7 @@ public final class Permissions {
     // eliteessentials.admin.*
     public static final String ADMIN = ADMIN_BASE + ".*";
     public static final String ADMIN_RELOAD = ADMIN_BASE + ".reload";
+    public static final String ADMIN_GROUPSYNC = ADMIN_BASE + ".groupsync";
     public static final String ADMIN_ALIAS = ADMIN_BASE + ".alias";
     public static final String ADMIN_SENDMESSAGE = ADMIN_BASE + ".sendmessage";
     public static final String ADMIN_RTP = ADMIN_BASE + ".rtp";

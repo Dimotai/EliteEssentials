@@ -1,8 +1,42 @@
 # Changelog
 
+## 1.1.20 - 2026-03-15
+
+### Added
+* **AFK players excluded from sleep percentage** — AFK players no longer count toward the total player count for night skip. If 10 players are online and 3 are AFK, only 7 count toward the sleep threshold. Config: `afk.excludeFromSleep` (default: `true`). If all players are AFK, the sleep check is skipped entirely
+* **Console command execution delay** — Workaround for a native Hytale CommandManager bug that can cause `IllegalStateException: No match found` when multiple commands run back-to-back (e.g. kit commands, playtime reward commands). Commands are now staggered by a configurable delay. Config: `commandExecutionDelayMs` (default: `150`). Set to `0` to disable (previous behaviour). Applies to kits, starter kits, and playtime rewards
+* **Playtime reward command staggering** — When multiple playtime rewards fire in the same check (e.g. 1h and 2h), their command batches are now staggered (200 ms between batches) so they don’t overlap and trigger the native command parser bug
+
+### Fixed
+* **Console command failures** — Commands executed as console (e.g. `give (player) Item --quantity=2` from playtime rewards or kits) could fail with `No match found` due to a race in Hytale’s parser. Staggering command execution avoids the issue
+
 ## 1.1.19 - 2026-03-07
 
 ### Added
+* **Multi-spawn behavior options** — When `spawn.perWorld = true` and a world has multiple spawn points (from `/setspawn <name>`), you can choose how `/spawn` and death respawn pick a spawn:
+  * **Default (both off):** Everyone goes to the **primary** spawn for that world. Same as before.
+  * **`spawn.multiNearbySpawn: true`** — `/spawn` and death respawn send the player to the **nearest** spawn to their current (or death) position. Good for large worlds with several spawn areas.
+  * **`spawn.multiRandomSpawn: true`** — `/spawn` and death respawn send the player to a **random** spawn in that world. Good for variety or minigames. If both are enabled, random takes priority.
+  * Config keys: `spawn.multiNearbySpawn` (default `false`), `spawn.multiRandomSpawn` (default `false`). No change for existing servers until you turn one on.
+* **IP history** — player files (`data/players/{uuid}.json`) now record `ipHistory`: a list of IP addresses with `lastUsed` timestamps
+  * Updated on each join; existing IPs get `lastUsed` refreshed; new IPs added; capped at 50 entries
+  * Format: `"ipHistory": [{"ip": "10.10.20.100", "lastUsed": 1773012653552}]`
+  * Useful for moderation, alt detection, and auditing
+* **Group sync** — sync groups between LuckPerms/HyperPerms and EliteEssentials config
+  * `/ee groupsync lp-to-ee` — copy LuckPerms groups into config.json (chatFormat, warps.groupLimits)
+  * `/ee groupsync hp-to-ee` — copy HyperPerms groups into config.json
+  * `/ee groupsync ee-to-lp` — create missing EE config groups in LuckPerms
+  * `/ee groupsync ee-to-hp` — create missing EE config groups in HyperPerms
+  * `/ee groupsync` — shows detailed help with all directions and what gets synced
+  * **Permission:** `eliteessentials.admin.groupsync` (Admin in simple mode; grant via LuckPerms in advanced mode)
+* **Greetings** — rule-based conditional welcome messages. Server owners define rules in `greetings.json` to send different messages to different players based on group, permission, world, spawn point, or first-join status
+  * **Triggers:** `server_join` (player connects), `world_enter` (player changes world), `respawn` (player respawns after death)
+  * **Conditions (AND between types, OR within lists):** `groups` (LuckPerms groups), `permissions` (permission nodes), `worlds` (world names with `*` wildcards), `spawns` (named spawn points), `firstJoin` (true/false)
+  * **Features:** per-rule delay (`delaySeconds`), `stopAfterMatch` to prevent lower rules from firing, `showOnce` to only fire once per session, unlimited message lines per rule, full placeholder support (`{player}`, `{world}`, `{server}`, `{playercount}`, `{group}`, `{spawn}`, PlaceholderAPI)
+  * **Config:** `greetings.enabled` (default: `false` — opt-in, won't affect existing servers). Rules stored in `greetings.json`
+  * **Permission:** `eliteessentials.admin.greetings` (Admin) — for future management commands
+  * **Coexists with MOTD:** greetings run independently from the existing MOTD system. Server owners can use both, or disable MOTD and use greetings exclusively
+  * **Reloadable:** `greetings.json` is reloaded on `/ee reload`
 * **First-join spawn** — teleport new players to a dedicated spawn point (e.g. a tutorial island) on their first join. Completely independent from the regular spawn system
   * `/setfirstjoinspawn` — stand at the desired location and run the command. New players will be teleported there on first join
   * `/delfirstjoinspawn` — remove the first-join spawn point (new players will use Hytale's default spawn)
@@ -11,8 +45,8 @@
   * **Messages:** `firstJoinSpawnSet`, `firstJoinSpawnDeleted`, `firstJoinSpawnNotSet`, `firstJoinSpawnTeleported`
   * **No conflict** with `teleportOnEveryLogin`: first-join teleport happens at login, every-login rewrite happens at disconnect. First session goes to tutorial, second login onwards goes to regular spawn
   * **Storage:** Saved in `firstjoinspawn.json` (separate from `spawn.json`), supports cross-world teleport
-* **Migration force mode** — `/eemigration <source> force` overwrites existing homes and kit cooldowns with source data instead of skipping them. Useful when re-migrating after a failed or partial migration
-  * Usage: `/eemigration essentialscore force`
+* **Migration force mode** — `/eemigration <source> force` overwrites existing data with source data instead of skipping. Useful when re-migrating after a failed or partial migration
+  * Usage: `/eemigration essentialscore force` or `/eemigration essentialsplus force`
   * Without `force`, existing data is preserved (same behavior as before)
   * `/eemigration` with no args now shows full usage help with all sources and options
 
@@ -22,6 +56,11 @@
   * **Spawn** — `spawn.json` is now imported as the primary spawn for its world (skipped if a spawn already exists)
   * **Player names** — reads `uuids.json` to resolve player names instead of defaulting to "Unknown" for migrated player files
   * Migration result now reports player files found, players skipped (already migrated), spawns imported, and kit cooldowns imported
+* **EssentialsPlus migration** (`/eemigration essentialsplus`): expanded to match current EssentialsPlus data format
+  * **Spawns** — imports `spawns.json` (array of spawns with `mainSpawn` flag); grouped by world with primary spawn detection
+  * **User profiles** — imports `users/{uuid}.json`: balance, playtime (ms→s), firstJoin/lastSeen timestamps, ipHistory, ignoredPlayers
+  * **Kit cooldowns** — `lastClaimed` from each kit file is migrated to player kit cooldowns
+  * **Force mode** — `/eemigration essentialsplus force` overwrites existing warps, kits, homes, spawns, and player data (same as EssentialScore)
 * **Home GUI crash** — fixed `NullPointerException` in `HomeSelectionPage` when sorting homes with a null name (could occur with corrupted or partially-migrated home data). Sort is now null-safe
 
 ## 1.1.18 - 2026-03-01

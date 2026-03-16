@@ -1,9 +1,7 @@
 package com.eliteessentials.services;
 
-import com.eliteessentials.EliteEssentials;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.config.PluginConfig;
-import com.eliteessentials.services.AfkService;
 import com.eliteessentials.model.PlayTimeReward;
 import com.eliteessentials.model.PlayerFile;
 import com.eliteessentials.storage.PlayTimeRewardStorage;
@@ -219,11 +217,12 @@ public class PlayTimeRewardService {
         
         List<PlayTimeReward> rewards = storage.getEnabledRewards();
         
-        for (PlayTimeReward reward : rewards) {
+        for (int i = 0; i < rewards.size(); i++) {
+            PlayTimeReward reward = rewards.get(i);
             if (reward.isRepeatable()) {
-                checkRepeatableReward(playerId, playerData.getName(), reward, totalPlayTimeMinutes);
+                checkRepeatableReward(playerId, playerData.getName(), reward, totalPlayTimeMinutes, i);
             } else {
-                checkMilestoneReward(playerId, playerData.getName(), reward, totalPlayTimeMinutes);
+                checkMilestoneReward(playerId, playerData.getName(), reward, totalPlayTimeMinutes, i);
             }
         }
     }
@@ -276,7 +275,7 @@ public class PlayTimeRewardService {
     /**
      * Check and grant a milestone (one-time) reward.
      */
-    private void checkMilestoneReward(UUID playerId, String playerName, PlayTimeReward reward, long totalMinutes) {
+    private void checkMilestoneReward(UUID playerId, String playerName, PlayTimeReward reward, long totalMinutes, int rewardIndex) {
         // Already claimed? Check player file
         if (playerFileStorage != null) {
             PlayerFile playerFile = playerFileStorage.getPlayer(playerId);
@@ -290,7 +289,7 @@ public class PlayTimeRewardService {
         
         // Eligible?
         if (totalMinutes >= reward.getMinutesRequired()) {
-            grantReward(playerId, playerName, reward);
+            grantReward(playerId, playerName, reward, rewardIndex);
             
             // Mark as claimed in player file
             if (playerFileStorage != null) {
@@ -319,7 +318,7 @@ public class PlayTimeRewardService {
      * Check and grant a repeatable reward.
      * Only grants ONE reward per check cycle to prevent spam.
      */
-    private void checkRepeatableReward(UUID playerId, String playerName, PlayTimeReward reward, long totalMinutes) {
+    private void checkRepeatableReward(UUID playerId, String playerName, PlayTimeReward reward, long totalMinutes, int rewardIndex) {
         int claimCount;
         
         // Get claim count from player file
@@ -344,7 +343,7 @@ public class PlayTimeRewardService {
         // Grant only ONE reward per check cycle (prevents spam)
         // If they're behind, they'll catch up over multiple cycles
         if (claimCount < expectedClaims) {
-            grantReward(playerId, playerName, reward);
+            grantReward(playerId, playerName, reward, rewardIndex);
             
             // Increment claim count in player file
             if (playerFileStorage != null) {
@@ -364,10 +363,14 @@ public class PlayTimeRewardService {
         }
     }
 
+    /** Delay (ms) per reward index when multiple rewards fire in one check, to avoid overlapping command execution. */
+    private static final int REWARD_BATCH_STAGGER_MS = 200;
+
     /**
      * Grant a reward to a player (send message and execute commands).
+     * @param rewardIndex index of this reward in the current check (used to stagger command batches when multiple rewards fire).
      */
-    private void grantReward(UUID playerId, String playerName, PlayTimeReward reward) {
+    private void grantReward(UUID playerId, String playerName, PlayTimeReward reward, int rewardIndex) {
         PluginConfig config = configManager.getConfig();
         
         // Send message to player
@@ -392,9 +395,10 @@ public class PlayTimeRewardService {
             }
         }
         
-        // Execute commands
+        // Execute commands (stagger batch when multiple rewards fire in same check, e.g. 1h + 2h)
         CommandExecutor.setDebugEnabled(configManager.isDebugEnabled());
-        CommandExecutor.executeCommands(reward.getCommands(), playerName, playerId, "PlayTimeReward");
+        int initialDelayMs = rewardIndex * REWARD_BATCH_STAGGER_MS;
+        CommandExecutor.executeCommands(reward.getCommands(), playerName, playerId, "PlayTimeReward", initialDelayMs);
     }
     
     /**

@@ -2,12 +2,15 @@ package com.eliteessentials.listeners;
 
 import com.eliteessentials.EliteEssentials;
 import com.eliteessentials.config.ConfigManager;
+import com.eliteessentials.model.PlayerFile;
 import com.eliteessentials.config.PluginConfig;
 import com.eliteessentials.integration.PAPIIntegration;
 import com.eliteessentials.services.AfkService;
+import com.eliteessentials.services.GreetingService;
 import com.eliteessentials.services.MailService;
 import com.eliteessentials.services.NickService;
 import com.eliteessentials.services.PlayerService;
+import com.eliteessentials.services.IpBanService;
 import com.eliteessentials.services.PlayTimeRewardService;
 import com.eliteessentials.storage.MotdStorage;
 import com.eliteessentials.storage.PlayerFileStorage;
@@ -70,6 +73,7 @@ public class JoinQuitListener {
     private SpawnStorage spawnStorage;
     private com.eliteessentials.services.VanishService vanishService;
     private MailService mailService;
+    private GreetingService greetingService;
 
     // Track players currently on the server to differentiate world changes from joins/quits
     private final Set<UUID> onlinePlayers = ConcurrentHashMap.newKeySet();
@@ -117,6 +121,13 @@ public class JoinQuitListener {
      */
     public void setMailService(MailService service) {
         this.mailService = service;
+    }
+
+    /**
+     * Set the greeting service (called after initialization).
+     */
+    public void setGreetingService(GreetingService service) {
+        this.greetingService = service;
     }
 
     /**
@@ -231,6 +242,30 @@ public class JoinQuitListener {
         // Update last world tracking
         playerLastWorld.put(playerId, worldName);
 
+        // Ensure NearestSpawnProvider or RandomSpawnProvider is set when multi-spawn mode enabled
+        World world = event.getWorld();
+        if (world != null && spawnStorage != null && config.spawn.perWorld
+                && (config.spawn.multiNearbySpawn || config.spawn.multiRandomSpawn)
+                && spawnStorage.getSpawnCount(worldName) > 1) {
+            try {
+                var provider = world.getWorldConfig().getSpawnProvider();
+                String providerName = provider != null ? provider.getClass().getSimpleName() : "";
+                boolean wantNearest = config.spawn.multiNearbySpawn && !config.spawn.multiRandomSpawn;
+                boolean wantRandom = config.spawn.multiRandomSpawn;
+                boolean hasCorrectProvider = (wantNearest && "NearestSpawnProvider".equals(providerName))
+                    || (wantRandom && "RandomSpawnProvider".equals(providerName));
+                if (!hasCorrectProvider) {
+                    var cache = EliteEssentials.getInstance().getDeathPositionCache();
+                    if (cache != null) {
+                        var primary = spawnStorage.getPrimarySpawn(worldName);
+                        if (primary != null) {
+                            spawnStorage.syncSpawnToWorld(world, primary, cache, config.spawn.multiRandomSpawn);
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
         // If player was draining (world change), show world MOTD and broadcast
         if (isWorldChange) {
             // Broadcast world join message if enabled (but not for vanished players)
@@ -244,6 +279,11 @@ public class JoinQuitListener {
 
             // Show world-specific MOTD if configured
             showWorldMotd(playerRef, worldName);
+
+            // Evaluate greeting rules (world_enter trigger)
+            if (greetingService != null) {
+                greetingService.evaluate(playerRef, "world_enter", worldName, false, null);
+            }
         }
     }
 
@@ -293,8 +333,19 @@ public class JoinQuitListener {
             // Set initial world for world change detection
             playerLastWorld.put(playerId, worldName);
 
+            // Determine first join BEFORE onPlayerJoin: use same criterion as StarterKitEvent
+            // (no EE player file on disk). Once we call onPlayerJoin we create/save the file.
+            boolean isFirstJoin = playerFileStorage != null && !playerFileStorage.hasPlayer(playerId);
+
             // Update player cache
-            playerService.onPlayerJoin(playerId, playerName);
+            PlayerFile pf = playerService.onPlayerJoin(playerId, playerName);
+
+            // Record IP in player's ipHistory
+            String ip = IpBanService.getIpFromPacketHandler(playerRef.getPacketHandler());
+            if (ip != null && pf != null && playerFileStorage != null) {
+                pf.recordIp(ip);
+                playerFileStorage.markDirty(playerId);
+            }
 
             // Hide vanished players from this joining player and check if they were vanished
             boolean playerIsVanished = false;
@@ -330,23 +381,8 @@ public class JoinQuitListener {
                 tabListService.onPlayerJoin(playerId);
             }
 
-            // Check if first join by checking if player file existed on disk before this session
-            // We check the file directly because playerService.onPlayerJoin() just created it
-            boolean isFirstJoin = false;
-            if (playerFileStorage != null) {
-                var playerData = playerFileStorage.getPlayer(playerId);
-                if (playerData != null) {
-                    long firstJoinTime = playerData.getFirstJoin();
-                    long now = System.currentTimeMillis();
-                    // If firstJoin was set within the last 10 seconds, this is a new player
-                    // Using 10 seconds to account for any delays in event processing
-                    isFirstJoin = (now - firstJoinTime) < 10000;
-
-                    if (configManager.isDebugEnabled()) {
-                        logger.info("[FirstJoin] Player " + playerName + " firstJoinTime=" + firstJoinTime +
-                                ", now=" + now + ", diff=" + (now - firstJoinTime) + "ms, isFirstJoin=" + isFirstJoin);
-                    }
-                }
+            if (configManager.isDebugEnabled() && isFirstJoin) {
+                logger.info("[FirstJoin] Player " + playerName + " detected as first join (no EE player file before join).");
             }
 
             if (isFirstJoin) {
@@ -433,6 +469,11 @@ public class JoinQuitListener {
 
             // Also show world-specific MOTD for the initial world
             showWorldMotd(playerRef, worldName);
+
+            // Evaluate greeting rules (server_join trigger)
+            if (greetingService != null) {
+                greetingService.evaluate(playerRef, "server_join", worldName, isFirstJoin, null);
+            }
 
             // Notify about unread mail
             if (config.mail.enabled && config.mail.notifyOnLogin && mailService != null) {
@@ -521,6 +562,10 @@ public class JoinQuitListener {
         playerLastWorld.remove(playerId);
         // Clear teleport guard so stale entries don't block future sessions
         TeleportGuard.get().clear(playerId);
+        // Clear greeting session state
+        if (greetingService != null) {
+            greetingService.onPlayerQuit(playerId);
+        }
 
         // Notify playtime reward service before updating player cache
         PlayTimeRewardService rewardService = EliteEssentials.getInstance().getPlayTimeRewardService();

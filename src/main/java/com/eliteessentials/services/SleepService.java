@@ -24,12 +24,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 /**
  * Service that monitors sleeping players and triggers night skip
  * when the configured percentage of players are sleeping.
  */
 public class SleepService {
+
+    private static final Logger logger = Logger.getLogger("EliteEssentials");
 
     // Time in milliseconds a player must be in NoddingOff state before counting as sleeping
     private static final long NODDING_OFF_THRESHOLD_MS = 3200;
@@ -116,7 +119,23 @@ public class SleepService {
                 List<PlayerRef> players = new ArrayList<>(world.getPlayerRefs());
                 if (players.isEmpty()) return;
                 
-                int totalPlayers = players.size();
+                // Exclude AFK players from total count if configured
+                int afkCount = 0;
+                AfkService afkService = com.eliteessentials.EliteEssentials.getInstance().getAfkService();
+                boolean excludeAfk = configManager.getConfig().afk.excludeFromSleep && afkService != null;
+                if (excludeAfk) {
+                    for (PlayerRef player : players) {
+                        if (player != null && player.getUuid() != null && afkService.isAfk(player.getUuid())) {
+                            afkCount++;
+                        }
+                    }
+                    if (afkCount > 0 && configManager.isDebugEnabled()) {
+                        logger.info("[Sleep] Excluding " + afkCount + " AFK player(s) from sleep percentage");
+                    }
+                }
+                
+                int totalPlayers = players.size() - afkCount;
+                if (totalPlayers <= 0) return; // All players are AFK
                 int sleepingPlayers = 0;
                 
                 // Get current game time for checking NoddingOff/MorningWakeUp states

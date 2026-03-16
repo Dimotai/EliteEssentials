@@ -437,7 +437,8 @@ public class ConfigManager {
             "aliases.json",
             "players.json",
             "homes.json",
-            "first_join.json"
+            "first_join.json",
+            "greetings.json"
         };
         
         for (String filename : pluginFiles) {

@@ -10,6 +10,9 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 /**
@@ -24,6 +27,9 @@ public final class CommandExecutor {
 
     private static final Logger logger = Logger.getLogger("EliteEssentials");
     private static boolean debugEnabled = false;
+    /** Delay (ms) between each command when running multiple; 0 = no delay. Workaround for Hytale CommandManager parser bug. */
+    private static volatile int delayBetweenCommandsMs = 0;
+    private static volatile ScheduledExecutorService delayScheduler;
 
     private CommandExecutor() {}
 
@@ -35,13 +41,60 @@ public final class CommandExecutor {
     }
 
     /**
+     * Set delay (ms) between console command executions when running multiple commands.
+     * Workaround for native Hytale CommandManager bug (No match found). 0 = no delay.
+     */
+    public static void setDelayBetweenCommandsMs(int ms) {
+        delayBetweenCommandsMs = Math.max(0, ms);
+    }
+
+    /**
      * Execute a list of commands as console for a given player.
+     * When {@link #setDelayBetweenCommandsMs(int)} is &gt; 0, commands are staggered to work around
+     * a native Hytale CommandManager parser bug (No match found when run back-to-back).
      */
     public static void executeCommands(List<String> commands, String playerName, UUID playerId, String source) {
+        executeCommands(commands, playerName, playerId, source, 0);
+    }
+
+    /**
+     * Execute a list of commands with an optional initial delay (ms). Use when multiple batches
+     * (e.g. multiple playtime rewards in one check) need to be staggered so commands don't overlap.
+     */
+    public static void executeCommands(List<String> commands, String playerName, UUID playerId, String source, int initialDelayMs) {
         if (commands == null || commands.isEmpty()) return;
-        for (String command : commands) {
-            executeCommand(command, playerName, playerId, source);
+        int delayMs = delayBetweenCommandsMs;
+        if (delayMs <= 0 && initialDelayMs <= 0) {
+            for (String command : commands) {
+                executeCommand(command, playerName, playerId, source);
+            }
+            return;
         }
+        ScheduledExecutorService scheduler = getDelayScheduler();
+        for (int i = 0; i < commands.size(); i++) {
+            String command = commands.get(i);
+            long delay = (long) initialDelayMs + (long) i * delayMs;
+            if (delay == 0) {
+                executeCommand(command, playerName, playerId, source);
+            } else {
+                scheduler.schedule(() -> executeCommand(command, playerName, playerId, source), delay, TimeUnit.MILLISECONDS);
+            }
+        }
+    }
+
+    private static ScheduledExecutorService getDelayScheduler() {
+        if (delayScheduler == null) {
+            synchronized (CommandExecutor.class) {
+                if (delayScheduler == null) {
+                    delayScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+                        Thread t = new Thread(r, "EliteEssentials-CommandDelay");
+                        t.setDaemon(true);
+                        return t;
+                    });
+                }
+            }
+        }
+        return delayScheduler;
     }
 
     /**

@@ -58,10 +58,12 @@ public class HytaleDelSpawnCommand extends AbstractPlayerCommand {
             EliteEssentials.getInstance().getSpawnProtectionService()
                 .loadFromStorage(spawnStorage);
             
-            // Re-sync primary to native provider
+            // Re-sync to native provider
             SpawnStorage.SpawnData primary = spawnStorage.getPrimarySpawn(worldName);
             if (primary != null) {
-                spawnStorage.syncSpawnToWorld(world, primary);
+                var config = EliteEssentials.getInstance().getConfigManager().getConfig();
+                var cache = (config.spawn.multiNearbySpawn || config.spawn.multiRandomSpawn) ? EliteEssentials.getInstance().getDeathPositionCache() : null;
+                spawnStorage.syncSpawnToWorld(world, primary, cache, config.spawn.multiRandomSpawn);
             }
             
             ctx.sendMessage(MessageFormatter.format(

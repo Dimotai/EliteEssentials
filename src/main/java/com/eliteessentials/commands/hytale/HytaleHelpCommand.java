@@ -266,6 +266,10 @@ public class HytaleHelpCommand extends CommandBase {
             available.add(new CommandInfo("/ee reload", "Reload configuration"));
             available.add(new CommandInfo("/alias", "Manage command aliases"));
         }
+
+        if (perms.canUseAdminCommand(sender, Permissions.ADMIN_GROUPSYNC, true)) {
+            available.add(new CommandInfo("/ee groupsync [lp-to-ee|hp-to-ee|ee-to-lp|ee-to-hp]", "Sync groups between EE config and LuckPerms/HyperPerms"));
+        }
         
         // ==================== CUSTOM HELP ENTRIES ====================
         // Loaded from custom_help.json - allows admins to add entries for other plugins

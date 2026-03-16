@@ -435,9 +435,11 @@ public class AliasService {
             
             String targetWorldName = config.spawn.perWorld ? world.getName() : config.spawn.mainWorld;
             
-            // Resolve spawn: nearest when perWorld=true with multiple spawns, primary otherwise
+            // Resolve spawn: random / nearest / primary (random takes precedence if both enabled)
             com.eliteessentials.storage.SpawnStorage.SpawnData s;
-            if (config.spawn.perWorld) {
+            if (config.spawn.perWorld && config.spawn.multiRandomSpawn) {
+                s = spawnStorage.getRandomSpawn(targetWorldName);
+            } else if (config.spawn.perWorld && config.spawn.multiNearbySpawn) {
                 TransformComponent preCheck = store.getComponent(ref, TransformComponent.getComponentType());
                 if (preCheck != null) {
                     Vector3d prePos = preCheck.getPosition();
@@ -484,7 +486,7 @@ public class AliasService {
                 TeleportUtil.safeTeleport(world, finalTargetWorld, spawnPos, spawnRot, player,
                     () -> {
                         if (!finalSilent) {
-                            boolean isMultiSpawn = config.spawn.perWorld && spawnStorage.getSpawnCount(targetWorldName) > 1;
+                            boolean isMultiSpawn = config.spawn.perWorld && (config.spawn.multiNearbySpawn || config.spawn.multiRandomSpawn) && spawnStorage.getSpawnCount(targetWorldName) > 1;
                             if (isMultiSpawn && finalSpawn.name != null) {
                                 ctx.sendMessage(MessageFormatter.formatWithFallback(
                                     configManager.getMessage("spawnTeleportedNamed", "name", finalSpawn.name), "#55FF55"));

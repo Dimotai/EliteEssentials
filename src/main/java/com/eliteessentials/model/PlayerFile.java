@@ -51,6 +51,9 @@ public class PlayerFile {
     // Balance change notification (for tooltip display)
     private BalanceChangeNotification balanceChangeNotification;
     
+    // IP address history (ip -> last used timestamp)
+    private List<IpHistoryEntry> ipHistory = new ArrayList<>();
+    
     public PlayerFile() {
         // For Gson deserialization
     }
@@ -387,6 +390,46 @@ public class PlayerFile {
         this.balanceChangeNotification = null;
     }
     
+    // ==================== IP History ====================
+    
+    public List<IpHistoryEntry> getIpHistory() {
+        if (ipHistory == null) {
+            ipHistory = new ArrayList<>();
+        }
+        return ipHistory;
+    }
+    
+    public void setIpHistory(List<IpHistoryEntry> ipHistory) {
+        this.ipHistory = ipHistory != null ? ipHistory : new ArrayList<>();
+    }
+    
+    /**
+     * Record an IP address. Updates lastUsed if already present, otherwise adds.
+     * Caps history at 50 entries (oldest removed).
+     */
+    public void recordIp(String ip) {
+        if (ip == null || ip.isBlank()) return;
+        ip = ip.trim();
+        
+        List<IpHistoryEntry> list = getIpHistory();
+        long now = System.currentTimeMillis();
+        
+        for (IpHistoryEntry entry : list) {
+            if (ip.equals(entry.ip)) {
+                entry.lastUsed = now;
+                return;
+            }
+        }
+        
+        list.add(new IpHistoryEntry(ip, now));
+        while (list.size() > 50) {
+            IpHistoryEntry oldest = list.stream()
+                .min((a, b) -> Long.compare(a.lastUsed, b.lastUsed))
+                .orElse(null);
+            if (oldest != null) list.remove(oldest);
+        }
+    }
+    
     // ==================== Inner Classes ====================
     
     /**
@@ -410,5 +453,20 @@ public class PlayerFile {
     public static class PlaytimeClaims {
         public Set<String> claimedMilestones = new HashSet<>();
         public Map<String, Integer> repeatableCounts = new HashMap<>();
+    }
+    
+    /**
+     * IP address history entry (ip + last used timestamp).
+     */
+    public static class IpHistoryEntry {
+        public String ip;
+        public long lastUsed;
+        
+        public IpHistoryEntry() {}
+        
+        public IpHistoryEntry(String ip, long lastUsed) {
+            this.ip = ip;
+            this.lastUsed = lastUsed;
+        }
     }
 }

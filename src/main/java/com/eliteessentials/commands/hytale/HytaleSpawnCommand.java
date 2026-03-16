@@ -119,14 +119,20 @@ public class HytaleSpawnCommand extends AbstractPlayerCommand {
                 return;
             }
         } else if (config.spawn.perWorld) {
-            // perWorld=true, no name → find nearest spawn
-            TransformComponent preCheck = store.getComponent(ref, TransformComponent.getComponentType());
-            if (preCheck == null) {
-                ctx.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("couldNotGetPosition"), "#FF5555"));
-                return;
+            // perWorld=true, no name → random / nearest / primary (random takes precedence if both enabled)
+            if (config.spawn.multiRandomSpawn) {
+                spawn = spawnStorage.getRandomSpawn(targetWorldName);
+            } else if (config.spawn.multiNearbySpawn) {
+                TransformComponent preCheck = store.getComponent(ref, TransformComponent.getComponentType());
+                if (preCheck == null) {
+                    ctx.sendMessage(MessageFormatter.formatWithFallback(configManager.getMessage("couldNotGetPosition"), "#FF5555"));
+                    return;
+                }
+                Vector3d prePos = preCheck.getPosition();
+                spawn = spawnStorage.getNearestSpawn(targetWorldName, prePos.getX(), prePos.getZ());
+            } else {
+                spawn = spawnStorage.getPrimarySpawn(targetWorldName);
             }
-            Vector3d prePos = preCheck.getPosition();
-            spawn = spawnStorage.getNearestSpawn(targetWorldName, prePos.getX(), prePos.getZ());
             if (spawn == null) {
                 ctx.sendMessage(MessageFormatter.formatWithFallback(
                     configManager.getMessage("spawnNoSpawn") + " (No spawn set for world: " + targetWorldName + ")", "#FF5555"));
@@ -178,7 +184,7 @@ public class HytaleSpawnCommand extends AbstractPlayerCommand {
                 () -> {
                     CommandPermissionUtil.chargeCost(ctx, player, "spawn", config.spawn.cost);
                     // Show named message if multi-spawn, basic message if single
-                    boolean isMultiSpawn = config.spawn.perWorld && spawnStorage.getSpawnCount(targetWorldName) > 1;
+                    boolean isMultiSpawn = config.spawn.perWorld && (config.spawn.multiNearbySpawn || config.spawn.multiRandomSpawn) && spawnStorage.getSpawnCount(targetWorldName) > 1;
                     if (isMultiSpawn && finalSpawn.name != null) {
                         player.sendMessage(MessageFormatter.formatWithFallback(
                             configManager.getMessage("spawnTeleportedNamed", "name", finalSpawn.name), "#55FF55"));

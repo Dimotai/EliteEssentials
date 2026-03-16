@@ -60,7 +60,9 @@
     "perWorld": false,
     "mainWorld": "default",
     "cost": 0.0,
-    "teleportOnEveryLogin": false
+    "teleportOnEveryLogin": false,
+    "multiNearbySpawn": false,
+    "multiRandomSpawn": false
   },
   
   "warps": {

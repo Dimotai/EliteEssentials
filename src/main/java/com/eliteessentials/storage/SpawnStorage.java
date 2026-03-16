@@ -11,7 +11,11 @@ import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.WorldConfig;
+import com.eliteessentials.spawn.DeathPositionCache;
+import com.eliteessentials.spawn.NearestSpawnProvider;
+import com.eliteessentials.spawn.RandomSpawnProvider;
 import com.hypixel.hytale.server.core.universe.world.spawn.GlobalSpawnProvider;
+import com.hypixel.hytale.server.core.universe.world.spawn.ISpawnProvider;
 
 import java.io.*;
 import java.lang.reflect.Type;
@@ -315,6 +319,15 @@ public class SpawnStorage {
     }
 
     /**
+     * Get a random spawn point in a world. Returns null if none.
+     */
+    public SpawnData getRandomSpawn(String worldName) {
+        List<SpawnData> list = spawns.get(worldName);
+        if (list == null || list.isEmpty()) return null;
+        return list.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(list.size()));
+    }
+
+    /**
      * Add or update a named spawn point in a world.
      * If a spawn with the same name exists, it's updated.
      * 
@@ -492,24 +505,48 @@ public class SpawnStorage {
     // ==================== WORLD SYNC ====================
 
     /**
-     * Sync the primary spawn to a world's native spawn provider.
-     * Only syncs the primary spawn - Hytale's native provider supports one spawn per world.
-     * 
-     * NOTE: We intentionally do NOT call worldConfig.markChanged() because that triggers
-     * spawn marker entity recreation in SpawnReferenceSystems, which causes
-     * ArrayIndexOutOfBoundsException crashes during chunk loading when duplicate
-     * marker entities collide.
+     * Sync spawn to a world's native provider. Uses GlobalSpawnProvider (single spawn).
      */
     public void syncSpawnToWorld(World world, SpawnData spawn) {
+        syncSpawnToWorld(world, spawn, null, false);
+    }
+
+    /**
+     * Sync spawn to a world's native provider.
+     */
+    public void syncSpawnToWorld(World world, SpawnData spawn, DeathPositionCache deathCache) {
+        syncSpawnToWorld(world, spawn, deathCache, false);
+    }
+
+    /**
+     * Sync spawn to a world's native provider.
+     * When useRandomSpawn and multiple spawns: RandomSpawnProvider.
+     * When deathCache non-null and multiple spawns: NearestSpawnProvider.
+     * Else: GlobalSpawnProvider.
+     */
+    public void syncSpawnToWorld(World world, SpawnData spawn, DeathPositionCache deathCache, boolean useRandomSpawn) {
         try {
             WorldConfig worldConfig = world.getWorldConfig();
-            Transform spawnTransform = new Transform(
-                new Vector3d(spawn.x, spawn.y, spawn.z),
-                new Vector3f(0, spawn.yaw, 0)
-            );
-            worldConfig.setSpawnProvider(new GlobalSpawnProvider(spawnTransform));
-            logger.info("[SpawnSync] Set native spawn provider for world '" + world.getName() + 
-                "' at " + String.format("%.1f, %.1f, %.1f", spawn.x, spawn.y, spawn.z));
+            String worldName = world.getName();
+            int count = getSpawnCount(worldName);
+            ISpawnProvider provider;
+
+            if (count > 1 && useRandomSpawn && deathCache != null) {
+                provider = new RandomSpawnProvider(this, deathCache, worldName);
+                logger.info("[SpawnSync] Set RandomSpawnProvider for world '" + worldName + "' (" + count + " spawns)");
+            } else if (count > 1 && deathCache != null) {
+                provider = new NearestSpawnProvider(this, deathCache, worldName);
+                logger.info("[SpawnSync] Set NearestSpawnProvider for world '" + worldName + "' (" + count + " spawns)");
+            } else {
+                Transform spawnTransform = new Transform(
+                    new Vector3d(spawn.x, spawn.y, spawn.z),
+                    new Vector3f(0, spawn.yaw, 0)
+                );
+                provider = new GlobalSpawnProvider(spawnTransform);
+                logger.info("[SpawnSync] Set GlobalSpawnProvider for world '" + worldName + 
+                    "' at " + String.format("%.1f, %.1f, %.1f", spawn.x, spawn.y, spawn.z));
+            }
+            worldConfig.setSpawnProvider(provider);
         } catch (Exception e) {
             logger.warning("[SpawnSync] Failed to sync spawn for world '" + world.getName() + "': " + e.getMessage());
         }

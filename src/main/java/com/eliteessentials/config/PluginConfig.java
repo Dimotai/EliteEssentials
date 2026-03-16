@@ -24,6 +24,14 @@ public class PluginConfig {
      */
     public boolean advancedPermissions = false;
 
+    /**
+     * Delay (ms) between console command executions when running multiple commands
+     * (e.g. kit commands, playtime reward commands). Workaround for a native Hytale
+     * CommandManager bug that can cause "No match found" when commands run back-to-back.
+     * 0 = no delay (previous behaviour). Recommended: 100-200.
+     */
+    public int commandExecutionDelayMs = 150;
+
     // ==================== GUI ====================
     
     /** GUI pagination and entry limits */
@@ -74,6 +82,7 @@ public class PluginConfig {
     public FreezeConfig freeze = new FreezeConfig();
     public NickConfig nick = new NickConfig();
     public FirstJoinSpawnConfig firstJoinSpawn = new FirstJoinSpawnConfig();
+    public GreetingsConfig greetings = new GreetingsConfig();
     
     // ==================== MESSAGES ====================
     
@@ -883,6 +892,20 @@ public class PluginConfig {
          * When perWorld=false, only one spawn per world is used (the primary).
          */
         public int maxSpawnsPerWorld = 10;
+
+        /**
+         * When true and perWorld=true with multiple spawns: /spawn and death respawn use
+         * the nearest spawn to the player's position. When false (default): always use
+         * the primary spawn of the world.
+         */
+        public boolean multiNearbySpawn = false;
+
+        /**
+         * When true and perWorld=true with multiple spawns: /spawn and death respawn use
+         * a random spawn point in that world. Takes precedence over multiNearbySpawn when
+         * both are enabled.
+         */
+        public boolean multiRandomSpawn = false;
     }
 
     // ==================== WARPS ====================
@@ -1585,6 +1608,13 @@ public class PluginConfig {
          * When true, AFK players won't accumulate reward time.
          */
         public boolean excludeFromRewards = true;
+        
+        /**
+         * Exclude AFK players from the sleep percentage calculation.
+         * When true, AFK players don't count toward the total player count
+         * needed for night skip, making it easier for active players to skip night.
+         */
+        public boolean excludeFromSleep = true;
     }
     
     // ==================== JOINDATE ====================
@@ -1662,6 +1692,17 @@ public class PluginConfig {
         public boolean requireFormattingPermission = false;
     }
     
+    // ==================== GREETINGS ====================
+
+    public static class GreetingsConfig {
+        /**
+         * Enable/disable the greetings system (conditional welcome messages).
+         * Rules are configured in greetings.json.
+         * Greetings are independent from MOTD and can run alongside it.
+         */
+        public boolean enabled = false;
+    }
+
     // ==================== PLAYTIME REWARDS ====================
     
     public PlayTimeRewardsConfig playTimeRewards = new PlayTimeRewardsConfig();

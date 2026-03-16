@@ -84,7 +84,8 @@ public class HytaleSetSpawnCommand extends AbstractPlayerCommand {
             
             SpawnStorage.SpawnData spawnData = spawnStorage.getSpawn(worldName);
             if (spawnData != null) {
-                spawnStorage.syncSpawnToWorld(world, spawnData);
+                var cache = (config.spawn.multiNearbySpawn || config.spawn.multiRandomSpawn) ? EliteEssentials.getInstance().getDeathPositionCache() : null;
+                spawnStorage.syncSpawnToWorld(world, spawnData, cache, config.spawn.multiRandomSpawn);
             }
             
             EliteEssentials.getInstance().getSpawnProtectionService()
@@ -114,9 +115,11 @@ public class HytaleSetSpawnCommand extends AbstractPlayerCommand {
                 return;
             }
             
-            // Sync primary to native provider
-            if (result.primary) {
-                spawnStorage.syncSpawnToWorld(world, result);
+            // Always sync - use NearestSpawnProvider or RandomSpawnProvider when multi-spawn mode enabled
+            SpawnStorage.SpawnData primary = spawnStorage.getPrimarySpawn(worldName);
+            if (primary != null) {
+                var cache = (config.spawn.multiNearbySpawn || config.spawn.multiRandomSpawn) ? EliteEssentials.getInstance().getDeathPositionCache() : null;
+                spawnStorage.syncSpawnToWorld(world, primary, cache, config.spawn.multiRandomSpawn);
             }
             
             EliteEssentials.getInstance().getSpawnProtectionService()

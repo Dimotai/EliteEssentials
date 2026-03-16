@@ -69,6 +69,10 @@ Commands are either available to Everyone or Admin only:
 | `/alias` | Manage command aliases | Admin |
 | `/afk` | Toggle AFK status | Everyone |
 | `/eliteessentials reload` | Reload config | Admin |
+| `/ee groupsync lp-to-ee` | Sync LuckPerms groups into config.json | Admin |
+| `/ee groupsync hp-to-ee` | Sync HyperPerms groups into config.json | Admin |
+| `/ee groupsync ee-to-lp` | Create EE config groups in LuckPerms | Admin |
+| `/ee groupsync ee-to-hp` | Create EE config groups in HyperPerms | Admin |
 
 In simple mode, "Admin" means players in the OP group or with `eliteessentials.admin.*` permission.
 
@@ -213,6 +217,7 @@ eliteessentials
 └── admin
     ├── *                           # Full admin access (wildcard)
     ├── reload                      # /eliteessentials reload
+    ├── groupsync                   # /ee groupsync (sync LP <-> EE config)
     └── alias                       # /alias commands
 ```
 
@@ -357,6 +362,7 @@ eliteessentials
 | `eliteessentials.admin` | Also works as admin wildcard |
 | `eliteessentials.admin.reload` | Reload configuration |
 | `eliteessentials.admin.alias` | Manage command aliases |
+| `eliteessentials.admin.greetings` | Manage greeting rules |
 
 ### Cost Bypass Permissions
 

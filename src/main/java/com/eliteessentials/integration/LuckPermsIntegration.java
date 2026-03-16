@@ -350,7 +350,9 @@ public class LuckPermsIntegration {
         // Admin
         perms.add(Permissions.ADMIN);
         perms.add(Permissions.ADMIN_RELOAD);
+        perms.add(Permissions.ADMIN_GROUPSYNC);
         perms.add(Permissions.ADMIN_ALIAS);
+        perms.add(Permissions.GREETINGS_ADMIN);
         perms.add(Permissions.ADMIN_SENDMESSAGE);
         perms.add(Permissions.ADMIN_RTP);
         
@@ -359,6 +361,73 @@ public class LuckPermsIntegration {
     
     // ==================== LUCKPERMS UTILITY METHODS ====================
     
+    /**
+     * Get all loaded group names from LuckPerms.
+     * @return List of group names, or empty list if LuckPerms not available
+     */
+    public static List<String> getLoadedGroupNames() {
+        List<String> names = new ArrayList<>();
+        try {
+            Class<?> providerClass = Class.forName("net.luckperms.api.LuckPermsProvider");
+            Method getMethod = providerClass.getMethod("get");
+            Object luckPerms = getMethod.invoke(null);
+            if (luckPerms == null) return names;
+
+            Method getGroupManagerMethod = luckPerms.getClass().getMethod("getGroupManager");
+            Object groupManager = getGroupManagerMethod.invoke(luckPerms);
+            if (groupManager == null) return names;
+
+            Method getLoadedGroupsMethod = groupManager.getClass().getMethod("getLoadedGroups");
+            Object groups = getLoadedGroupsMethod.invoke(groupManager);
+            if (!(groups instanceof java.util.Collection)) return names;
+
+            for (Object group : (java.util.Collection<?>) groups) {
+                Method getNameMethod = group.getClass().getMethod("getName");
+                String name = (String) getNameMethod.invoke(group);
+                if (name != null) names.add(name);
+            }
+        } catch (Exception e) {
+            logger.warning("[LuckPerms] Error getting groups: " + e.getMessage());
+        }
+        return names;
+    }
+
+    /**
+     * Create a group in LuckPerms if it does not exist.
+     * @param groupName Name of the group to create
+     * @return true if group was created or already exists, false on error
+     */
+    public static boolean createGroup(String groupName) {
+        if (groupName == null || groupName.isBlank()) return false;
+        try {
+            Class<?> providerClass = Class.forName("net.luckperms.api.LuckPermsProvider");
+            Method getMethod = providerClass.getMethod("get");
+            Object luckPerms = getMethod.invoke(null);
+            if (luckPerms == null) return false;
+
+            Method getGroupManagerMethod = luckPerms.getClass().getMethod("getGroupManager");
+            Object groupManager = getGroupManagerMethod.invoke(luckPerms);
+            if (groupManager == null) return false;
+
+            // Check if group already exists
+            List<String> existing = getLoadedGroupNames();
+            for (String n : existing) {
+                if (n.equalsIgnoreCase(groupName)) return true;
+            }
+
+            Method createMethod = groupManager.getClass().getMethod("createAndLoadGroup", String.class);
+            Object future = createMethod.invoke(groupManager, groupName);
+            if (future != null && future.getClass().getName().contains("CompletableFuture")) {
+                Method joinMethod = future.getClass().getMethod("join");
+                joinMethod.invoke(future);
+            }
+            return true;
+        } catch (Exception e) {
+            logger.warning("[LuckPerms] Error creating group '" + groupName + "': " + e.getMessage());
+            return false;
+        }
+    }
+
     /**
      * Check if LuckPerms is available.
      */

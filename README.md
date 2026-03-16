@@ -200,6 +200,7 @@ All 60+ player-facing messages are configurable in `messages.json`. Translate yo
 
 ### Player Info Commands
 - **`/seen <player>`** - Check when a player was last online
+- **`/playerinfo [player]`** - Detailed player info (UUID, nickname, first join, last seen, wallet, playtime, coordinates)
 - **`/joindate [player]`** - View when a player first joined the server
   - No argument shows your own join date
   - Separate permission for viewing other players' join dates
@@ -207,6 +208,7 @@ All 60+ player-facing messages are configurable in `messages.json`. Translate yo
   - No argument shows your own playtime
   - Includes current session for accurate live totals
   - Separate permission for viewing other players' playtime
+- **Player data** - Per-player files (`data/players/{uuid}.json`) include IP history (last 50 IPs with timestamps) for moderation and alt detection
 
 ### Help System
 - **`/eehelp`** - Shows all commands the player has permission to use (alias: /ehelp)
@@ -264,6 +266,13 @@ All 60+ player-facing messages are configurable in `messages.json`. Translate yo
 - **onlyCountNewPlaytime** - Option to only count playtime after system was enabled
 - Rewards defined in `playtime_rewards.json`
 - Works without LuckPerms - LP commands are skipped with a warning if not installed
+
+### Migration (Admin)
+- **`/eemigration <source> [force]`** — Migrate data from other essentials plugins
+- **Sources:** `essentialscore`, `essentialsplus`, `hyssentials`, `homesplus`
+- **Options:** Add `force` to overwrite existing data (use when re-migrating)
+- **EssentialsPlus** — Imports warps, kits, spawns, homes, and user profiles (balance, playtime, ipHistory, ignoredPlayers, kit cooldowns) from `mods/fof1092_EssentialsPlus/`
+- **EssentialsCore** — Imports warps, spawn, kits, homes, and kit cooldowns from `mods/com.nhulston_Essentials/`
 
 ## Configuration
 
@@ -345,6 +354,7 @@ Config file is automatically created on first server start with sensible default
 | `/alias` | Manage command aliases | Admin |
 | `/eehelp` | Show available commands | Everyone |
 | `/eliteessentials reload` | Reload configuration | Admin |
+| `/eemigration <source> [force]` | Migrate from EssentialsCore/EssentialsPlus/Hyssentials/HomesPlus | Admin |
 
 *In simple mode (default), "Everyone" commands work for all players, "Admin" requires OP.*
 

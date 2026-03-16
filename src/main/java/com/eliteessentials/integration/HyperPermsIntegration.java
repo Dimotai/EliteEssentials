@@ -338,6 +338,84 @@ public class HyperPermsIntegration {
         return group != null ? group : "";
     }
 
+    // ==================== GROUP SYNC ====================
+
+    /**
+     * Get all group names from HyperPerms.
+     * @return List of group names, or empty list if unavailable
+     */
+    public static List<String> getLoadedGroupNames() {
+        List<String> names = new ArrayList<>();
+        try {
+            Object api = getHyperPermsApi();
+            if (api == null) return names;
+
+            Method getGroupManagerMethod = api.getClass().getMethod("getGroupManager");
+            Object groupManager = getGroupManagerMethod.invoke(api);
+            if (groupManager == null) return names;
+
+            Method getGroupsMethod = groupManager.getClass().getMethod("getGroups");
+            Object groups = getGroupsMethod.invoke(groupManager);
+            if (!(groups instanceof java.util.Collection)) return names;
+
+            for (Object group : (java.util.Collection<?>) groups) {
+                Method getNameMethod = group.getClass().getMethod("getName");
+                String name = (String) getNameMethod.invoke(group);
+                if (name != null) names.add(name);
+            }
+        } catch (Exception e) {
+            logger.warning("[HyperPerms] Error getting groups: " + e.getMessage());
+        }
+        return names;
+    }
+
+    /**
+     * Create a group in HyperPerms if it does not exist.
+     * @param groupName Name of the group to create
+     * @return true if group was created or already exists, false on error
+     */
+    public static boolean createGroup(String groupName) {
+        if (groupName == null || groupName.isBlank()) return false;
+        try {
+            Object api = getHyperPermsApi();
+            if (api == null) return false;
+
+            Method getGroupManagerMethod = api.getClass().getMethod("getGroupManager");
+            Object groupManager = getGroupManagerMethod.invoke(api);
+            if (groupManager == null) return false;
+
+            // Check if group already exists
+            Method getGroupMethod = groupManager.getClass().getMethod("getGroup", String.class);
+            Object existing = getGroupMethod.invoke(groupManager, groupName);
+            if (existing != null) return true;
+
+            Method createMethod = groupManager.getClass().getMethod("createGroup", String.class);
+            Object group = createMethod.invoke(groupManager, groupName);
+            return group != null;
+        } catch (Exception e) {
+            logger.warning("[HyperPerms] Error creating group '" + groupName + "': " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get HyperPerms API/instance. Tries getApi() first, then getInstance().
+     */
+    private static Object getHyperPermsApi() {
+        try {
+            Class<?> hpClass = Class.forName("com.hyperperms.HyperPerms");
+            try {
+                Method getApiMethod = hpClass.getMethod("getApi");
+                Object api = getApiMethod.invoke(null);
+                if (api != null) return api;
+            } catch (NoSuchMethodException ignored) {}
+            Method getInstanceMethod = hpClass.getMethod("getInstance");
+            return getInstanceMethod.invoke(null);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     // ==================== INTERNAL HELPERS ====================
 
     /**

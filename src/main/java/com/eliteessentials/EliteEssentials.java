@@ -22,6 +22,7 @@ import com.eliteessentials.services.DamageTrackingService;
 import com.eliteessentials.services.DataMigrationService;
 import com.eliteessentials.services.DeathTrackingService;
 import com.eliteessentials.services.GodService;
+import com.eliteessentials.services.GreetingService;
 import com.eliteessentials.services.GroupChatService;
 import com.eliteessentials.services.HomeService;
 import com.eliteessentials.services.IgnoreService;
@@ -47,6 +48,7 @@ import com.eliteessentials.services.WarmupService;
 import com.eliteessentials.services.WarpService;
 import com.eliteessentials.storage.CustomHelpStorage;
 import com.eliteessentials.storage.DiscordStorage;
+import com.eliteessentials.storage.GreetingStorage;
 import com.eliteessentials.storage.MotdStorage;
 import com.eliteessentials.storage.PlayerFileStorage;
 import com.eliteessentials.storage.PlayTimeRewardStorage;
@@ -82,6 +84,7 @@ public class EliteEssentials extends JavaPlugin {
     private PlayerFileStorage playerFileStorage;
     private WarpStorage warpStorage;
     private SpawnStorage spawnStorage;
+    private com.eliteessentials.spawn.DeathPositionCache deathPositionCache;
     private MotdStorage motdStorage;
     private RulesStorage rulesStorage;
     private CustomHelpStorage customHelpStorage;
@@ -119,6 +122,8 @@ public class EliteEssentials extends JavaPlugin {
     private IpBanService ipBanService;
     private FreezeService freezeService;
     private NickService nickService;
+    private GreetingStorage greetingStorage;
+    private GreetingService greetingService;
     private HytaleFlyCommand flyCommand;
     private PlayerDeathSystem playerDeathSystem;
     private DamageTrackingSystem damageTrackingSystem;
@@ -189,6 +194,7 @@ public class EliteEssentials extends JavaPlugin {
         
         spawnStorage = new SpawnStorage(this.dataFolder);
         spawnStorage.load();
+        deathPositionCache = new com.eliteessentials.spawn.DeathPositionCache();
         
         motdStorage = new MotdStorage(this.dataFolder);
         motdStorage.load();
@@ -230,6 +236,10 @@ public class EliteEssentials extends JavaPlugin {
         afkService = new AfkService(configManager);
         // Nick service - uses PlayerFileStorage, no separate file needed
         nickService = new NickService(playerFileStorage);
+
+        // Initialize greetings (conditional welcome messages)
+        greetingStorage = new GreetingStorage(this.dataFolder);
+        greetingService = new GreetingService(greetingStorage, configManager);
 
         ignoreService = new IgnoreService(playerFileStorage);
         muteService = new MuteService(this.dataFolder);
@@ -293,6 +303,9 @@ public class EliteEssentials extends JavaPlugin {
     protected void start() {
         getLogger().at(Level.INFO).log("EliteEssentials is starting...");
         
+        com.eliteessentials.util.CommandExecutor.setDelayBetweenCommandsMs(
+                configManager.getConfig().commandExecutionDelayMs);
+
         // Register commands
         registerCommands();
         
@@ -317,6 +330,7 @@ public class EliteEssentials extends JavaPlugin {
         joinQuitListener.setSpawnStorage(spawnStorage);
         joinQuitListener.setVanishService(vanishService);
         joinQuitListener.setMailService(mailService);
+        joinQuitListener.setGreetingService(greetingService);
         joinQuitListener.registerEvents(getEventRegistry());
         getLogger().at(Level.INFO).log("Join/Quit listener registered.");
         
@@ -384,7 +398,8 @@ public class EliteEssentials extends JavaPlugin {
         
         // Register respawn system (handles cross-world respawning at spawn if no bed is set)
         try {
-            respawnListener = new RespawnListener(spawnStorage);
+            respawnListener = new RespawnListener(spawnStorage, deathPositionCache);
+            respawnListener.setGreetingService(greetingService);
             EntityStore.REGISTRY.registerSystem(respawnListener);
             getLogger().at(Level.INFO).log("RespawnListener registered - handles cross-world respawn for bedless players!");
         } catch (Exception e) {
@@ -495,6 +510,9 @@ public class EliteEssentials extends JavaPlugin {
         }
         if (flyService != null) {
             flyService.shutdown();
+        }
+        if (greetingService != null) {
+            greetingService.shutdown();
         }
         if (playTimeRewardService != null) {
             playTimeRewardService.stop();
@@ -860,6 +878,10 @@ public class EliteEssentials extends JavaPlugin {
     public SpawnStorage getSpawnStorage() {
         return spawnStorage;
     }
+
+    public com.eliteessentials.spawn.DeathPositionCache getDeathPositionCache() {
+        return deathPositionCache;
+    }
     
     public MotdStorage getMotdStorage() {
         return motdStorage;
@@ -945,6 +967,10 @@ public class EliteEssentials extends JavaPlugin {
         return nickService;
     }
     
+    public GreetingService getGreetingService() {
+        return greetingService;
+    }
+    
     public File getPluginDataFolder() {
         return dataFolder;
     }
@@ -966,7 +992,9 @@ public class EliteEssentials extends JavaPlugin {
         
         // Reload main config
         configManager.loadConfig();
-        
+        com.eliteessentials.util.CommandExecutor.setDelayBetweenCommandsMs(
+                configManager.getConfig().commandExecutionDelayMs);
+
         // Update packet filters for all online players (for suppressDefaultMessages setting)
         if (joinQuitListener != null) {
             joinQuitListener.updatePacketFiltersForAll();
@@ -989,6 +1017,11 @@ public class EliteEssentials extends JavaPlugin {
         
         // NOTE: syncToNativeSpawnProviders() is NOT called on reload.
         // See startup comment — setSpawnProvider() causes marker entity crashes.
+        
+        // Reload greetings
+        if (greetingService != null) {
+            greetingService.reload();
+        }
         
         // Reload services
         kitService.reload();

@@ -15,6 +15,7 @@ import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.entity.entities.player.data.PlayerConfigData;
 import com.hypixel.hytale.server.core.entity.entities.player.data.PlayerRespawnPointData;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent;
 import com.hypixel.hytale.server.core.modules.entity.teleport.Teleport;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -22,6 +23,9 @@ import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import org.jetbrains.annotations.NotNull;
+
+import com.eliteessentials.services.GreetingService;
+import com.eliteessentials.spawn.DeathPositionCache;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -49,9 +53,16 @@ public class RespawnListener extends RefChangeSystem<EntityStore, DeathComponent
     private static final Logger logger = Logger.getLogger("EliteEssentials");
 
     private final SpawnStorage spawnStorage;
+    private final DeathPositionCache deathPositionCache;
+    private GreetingService greetingService;
 
-    public RespawnListener(SpawnStorage spawnStorage) {
+    public RespawnListener(SpawnStorage spawnStorage, DeathPositionCache deathPositionCache) {
         this.spawnStorage = spawnStorage;
+        this.deathPositionCache = deathPositionCache;
+    }
+
+    public void setGreetingService(GreetingService service) {
+        this.greetingService = service;
     }
 
     @Override
@@ -69,7 +80,17 @@ public class RespawnListener extends RefChangeSystem<EntityStore, DeathComponent
                                  @NotNull DeathComponent component,
                                  @NotNull Store<EntityStore> store,
                                  @NotNull CommandBuffer<EntityStore> buffer) {
-        // We only care about respawn (component removal).
+        // Capture death position for nearest-spawn logic (used by NearestSpawnProvider or our delayed teleport).
+        PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
+        if (playerRef == null) return;
+        TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
+        if (transform == null) return;
+        Vector3d pos = transform.getPosition();
+        deathPositionCache.put(playerRef.getUuid(), pos.getX(), pos.getZ());
+        if (EliteEssentials.getInstance().getConfigManager().isDebugEnabled()) {
+            logger.info("[Respawn] DeathComponent ADDED - stored death position for " + playerRef.getUuid() +
+                " at " + String.format("%.1f, %.1f", pos.getX(), pos.getZ()));
+        }
     }
 
     @Override
@@ -144,6 +165,16 @@ public class RespawnListener extends RefChangeSystem<EntityStore, DeathComponent
         deathWorld = entityStore.getWorld();
         String currentWorldName = deathWorld.getName();
 
+        if (debugEnabled) {
+            Object provider = null;
+            try {
+                provider = deathWorld.getWorldConfig().getSpawnProvider();
+            } catch (Exception ignored) {}
+            logger.info("[Respawn] PlayerId: " + playerId + ", World: " + currentWorldName);
+            logger.info("[Respawn] SpawnProvider: " + (provider != null ? provider.getClass().getSimpleName() : "null"));
+            logger.info("[Respawn] perWorld: " + config.spawn.perWorld + ", mainWorld: " + config.spawn.mainWorld);
+        }
+
         // --- Bed / custom respawn detection via PlayerConfigData ---
         boolean hasBedSpawn = false;
         try {
@@ -165,38 +196,73 @@ public class RespawnListener extends RefChangeSystem<EntityStore, DeathComponent
             return;
         }
 
-        // --- Same-world respawn handling ---
+        // --- NearestSpawnProvider handled respawn (single teleport, no flash) ---
+        String chosenSpawnName = playerId != null ? deathPositionCache.pollChosenSpawn(playerId) : null;
+        if (debugEnabled && chosenSpawnName == null) {
+            logger.info("[Respawn] chosenSpawn=null (NearestSpawnProvider did NOT handle - provider not used or world has GlobalSpawnProvider)");
+        }
+        if (chosenSpawnName != null) {
+            if (playerId != null) {
+                deathPositionCache.remove(playerId);
+            }
+            if (debugEnabled) {
+                logger.info("[Respawn] *** NearestSpawnProvider handled respawn (single TP) ***");
+                logger.info("[Respawn] Chosen spawn: '" + chosenSpawnName + "'");
+                logger.info("[Respawn] ========================================");
+            }
+            if (playerRef != null) {
+                var configManager = EliteEssentials.getInstance().getConfigManager();
+                playerRef.sendMessage(com.eliteessentials.util.MessageFormatter.formatWithFallback(
+                    configManager.getMessage("spawnRespawnedAt", "name", chosenSpawnName), "#AAAAAA"));
+            }
+            if (greetingService != null && playerRef != null) {
+                greetingService.evaluate(playerRef, "respawn", currentWorldName, false, chosenSpawnName);
+            }
+            return;
+        }
+
+        // --- Same-world respawn handling (fallback when world doesn't have NearestSpawnProvider) ---
         // When perWorld=true with multiple spawn points, we need to find the nearest
         // spawn to the death location (Hytale's native provider only knows one spawn).
         // When only one spawn exists, the native provider handles it.
 
         if (config.spawn.perWorld) {
-            // Check if we have multiple spawns in this world - if so, nearest spawn logic applies
             java.util.List<SpawnStorage.SpawnData> worldSpawns = spawnStorage.getSpawns(currentWorldName);
-            if (worldSpawns.size() <= 1) {
-                // Single spawn or no spawn - native provider handles it
+            if (worldSpawns.size() <= 1 || !config.spawn.multiNearbySpawn) {
                 if (debugEnabled) {
-                    logger.info("[Respawn] perWorld=true, single spawn - native provider handles same-world respawn.");
+                    logger.info("[Respawn] perWorld=true, spawnCount=" + worldSpawns.size() +
+                        (config.spawn.multiNearbySpawn ? "" : ", multiNearbySpawn=false") + " - native provider handles it.");
                     logger.info("[Respawn] ========================================");
                 }
                 return;
             }
             
-            // Multiple spawns - find nearest to death location
-            com.hypixel.hytale.server.core.modules.entity.component.TransformComponent deathTransform = null;
-            try {
-                deathTransform = store.getComponent(ref, com.hypixel.hytale.server.core.modules.entity.component.TransformComponent.getComponentType());
-            } catch (Exception ex) {
-                // ignore
-            }
-            
-            SpawnStorage.SpawnData nearestSpawn;
-            if (deathTransform != null) {
-                Vector3d deathPos = deathTransform.getPosition();
-                nearestSpawn = spawnStorage.getNearestSpawn(currentWorldName, deathPos.getX(), deathPos.getZ());
+            // Multiple spawns - find nearest to DEATH location (captured when component added).
+            // Do NOT use current Transform - by respawn time player may already be at primary spawn.
+            double deathX, deathZ;
+            double[] stored = playerId != null ? deathPositionCache.poll(playerId) : null;
+            boolean usedStoredDeathPos = false;
+            if (stored != null && stored.length >= 2) {
+                deathX = stored[0];
+                deathZ = stored[1];
+                usedStoredDeathPos = true;
             } else {
-                nearestSpawn = spawnStorage.getPrimarySpawn(currentWorldName);
+                TransformComponent deathTransform = store.getComponent(ref, TransformComponent.getComponentType());
+                if (deathTransform != null) {
+                    Vector3d p = deathTransform.getPosition();
+                    deathX = p.getX();
+                    deathZ = p.getZ();
+                } else {
+                    deathX = 0;
+                    deathZ = 0;
+                }
             }
+            if (debugEnabled) {
+                logger.info("[Respawn] *** Fallback: delayed TP (world has GlobalSpawnProvider or provider not used) ***");
+                logger.info("[Respawn] Death position: " + String.format("%.1f, %.1f", deathX, deathZ) + " (from " + (usedStoredDeathPos ? "cache" : "current Transform") + ")");
+                logger.info("[Respawn] Spawns in world: " + spawnStorage.getSpawnCount(currentWorldName));
+            }
+            SpawnStorage.SpawnData nearestSpawn = spawnStorage.getNearestSpawn(currentWorldName, deathX, deathZ);
             
             if (nearestSpawn == null) {
                 if (debugEnabled) {
@@ -206,19 +272,21 @@ public class RespawnListener extends RefChangeSystem<EntityStore, DeathComponent
                 return;
             }
             
+            if (debugEnabled) {
+                logger.info("[Respawn] Nearest spawn: '" + nearestSpawn.name + "' (primary=" + nearestSpawn.primary + ") at " +
+                    String.format("%.1f, %.1f, %.1f", nearestSpawn.x, nearestSpawn.y, nearestSpawn.z));
+            }
             // Check if nearest is the primary - if so, native provider already handles it
             if (nearestSpawn.primary) {
                 if (debugEnabled) {
-                    logger.info("[Respawn] Nearest spawn is primary - native provider handles it.");
+                    logger.info("[Respawn] Nearest is primary - native provider already put player there, nothing to do.");
                     logger.info("[Respawn] ========================================");
                 }
                 return;
             }
             
-            // Nearest spawn is NOT the primary - we need to override the native respawn
             if (debugEnabled) {
-                logger.info("[Respawn] Multi-spawn: nearest spawn '" + nearestSpawn.name + 
-                    "' at " + String.format("%.1f, %.1f, %.1f", nearestSpawn.x, nearestSpawn.y, nearestSpawn.z));
+                logger.info("[Respawn] Nearest is NOT primary - scheduling 1s delayed TP to '" + nearestSpawn.name + "'");
             }
             
             final Vector3d nearSpawnPos = new Vector3d(nearestSpawn.x, nearestSpawn.y, nearestSpawn.z);
@@ -247,6 +315,11 @@ public class RespawnListener extends RefChangeSystem<EntityStore, DeathComponent
                                         var configManager = EliteEssentials.getInstance().getConfigManager();
                                         playerRef.sendMessage(com.eliteessentials.util.MessageFormatter.formatWithFallback(
                                             configManager.getMessage("spawnRespawnedAt", "name", nearestName), "#AAAAAA"));
+                                    }
+                                    
+                                    // Evaluate greeting rules (respawn trigger)
+                                    if (greetingService != null && playerRef != null) {
+                                        greetingService.evaluate(playerRef, "respawn", currentWorldName, false, nearestName);
                                     }
                                     
                                     if (debugEnabled) {
@@ -312,7 +385,10 @@ public class RespawnListener extends RefChangeSystem<EntityStore, DeathComponent
         }
 
         if (debugEnabled) {
-            logger.info("[Respawn] Cross-world respawn: '" + currentWorldName + "' -> '" + targetWorldName + "'");
+            logger.info("[Respawn] *** Cross-world respawn ***");
+            logger.info("[Respawn] " + currentWorldName + " -> " + targetWorldName + " at " +
+                String.format("%.1f, %.1f, %.1f", ourSpawn.x, ourSpawn.y, ourSpawn.z));
+            logger.info("[Respawn] Scheduling 1s delayed cross-world TP");
         }
 
         // Prepare immutable copies for async usage
@@ -353,6 +429,11 @@ public class RespawnListener extends RefChangeSystem<EntityStore, DeathComponent
 
                                 Teleport teleport = new Teleport(targetWorld, spawnPos, spawnRot);
                                 storeFinal.putComponent(refFinal, Teleport.getComponentType(), teleport);
+
+                                // Evaluate greeting rules (respawn trigger, cross-world)
+                                if (greetingService != null && playerRef != null) {
+                                    greetingService.evaluate(playerRef, "respawn", targetWorldName, false, null);
+                                }
 
                                 if (debugEnabled) {
                                     logger.info("[Respawn] Cross-world teleport to mainWorld '" +

@@ -70,7 +70,7 @@ public class HytaleMigrationCommand extends CommandBase {
         } else if ("hyssentials".equalsIgnoreCase(source)) {
             handleHyssentialsMigration(ctx);
         } else if ("essentialsplus".equalsIgnoreCase(source)) {
-            handleEssentialsPlusMigration(ctx);
+            handleEssentialsPlusMigration(ctx, force);
         } else if ("homesplus".equalsIgnoreCase(source)) {
             handleHomesPlusMigration(ctx);
         } else {
@@ -86,8 +86,8 @@ public class HytaleMigrationCommand extends CommandBase {
         ctx.sendMessage(Message.raw("  essentialsplus - Import from EssentialsPlus").color("#AAAAAA"));
         ctx.sendMessage(Message.raw("  homesplus - Import from HomesPlus").color("#AAAAAA"));
         ctx.sendMessage(Message.raw("Options:").color("#AAAAAA"));
-        ctx.sendMessage(Message.raw("  force - Overwrite existing homes/cooldowns (use if re-migrating)").color("#AAAAAA"));
-        ctx.sendMessage(Message.raw("Example: /eemigration essentialscore force").color("#777777"));
+        ctx.sendMessage(Message.raw("  force - Overwrite existing data (use if re-migrating)").color("#AAAAAA"));
+        ctx.sendMessage(Message.raw("Examples: /eemigration essentialscore force | /eemigration essentialsplus force").color("#777777"));
     }
     
     private void handleEssentialsCoreMigration(CommandContext ctx, boolean force) {
@@ -199,12 +199,13 @@ public class HytaleMigrationCommand extends CommandBase {
         }
     }
     
-    private void handleEssentialsPlusMigration(CommandContext ctx) {
+    private void handleEssentialsPlusMigration(CommandContext ctx, boolean force) {
         EliteEssentials plugin = EliteEssentials.getInstance();
         
         EssentialsPlusMigrationService migrationService = new EssentialsPlusMigrationService(
             plugin.getDataFolder(),
             plugin.getWarpStorage(),
+            plugin.getSpawnStorage(),
             plugin.getKitService(),
             plugin.getPlayerFileStorage()
         );
@@ -217,10 +218,13 @@ public class HytaleMigrationCommand extends CommandBase {
         }
         
         ctx.sendMessage(Message.raw("Starting EssentialsPlus migration...").color("#FFAA00"));
+        if (force) {
+            ctx.sendMessage(Message.raw("Force mode: existing data will be overwritten.").color("#FFAA00"));
+        }
         ctx.sendMessage(Message.raw("Source: " + migrationService.getEssentialsPlusFolder().getAbsolutePath()).color("#AAAAAA"));
         
         // Run migration
-        EssentialsPlusMigrationService.MigrationResult result = migrationService.migrate();
+        EssentialsPlusMigrationService.MigrationResult result = migrationService.migrate(force);
         
         // Report results
         if (result.isSuccess()) {
@@ -231,8 +235,10 @@ public class HytaleMigrationCommand extends CommandBase {
         
         ctx.sendMessage(Message.raw("- Warps imported: " + result.getWarpsImported()).color("#AAAAAA"));
         ctx.sendMessage(Message.raw("- Kits imported: " + result.getKitsImported()).color("#AAAAAA"));
+        ctx.sendMessage(Message.raw("- Spawns imported: " + result.getSpawnsImported()).color("#AAAAAA"));
         ctx.sendMessage(Message.raw("- Players with homes: " + result.getPlayersImported()).color("#AAAAAA"));
         ctx.sendMessage(Message.raw("- Total homes imported: " + result.getHomesImported()).color("#AAAAAA"));
+        ctx.sendMessage(Message.raw("- User profiles migrated: " + result.getUsersImported()).color("#AAAAAA"));
         
         if (!result.getErrors().isEmpty()) {
             ctx.sendMessage(Message.raw("Errors (" + result.getErrors().size() + "):").color("#FF5555"));
@@ -242,7 +248,7 @@ public class HytaleMigrationCommand extends CommandBase {
         }
         
         // Remind about existing data
-        if (result.getWarpsImported() == 0 && result.getKitsImported() == 0 && result.getHomesImported() == 0) {
+        if (result.getTotalImported() == 0) {
             ctx.sendMessage(Message.raw("No new data imported. Existing data was preserved.").color("#AAAAAA"));
         }
     }

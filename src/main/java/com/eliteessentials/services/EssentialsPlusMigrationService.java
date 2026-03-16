@@ -2,10 +2,10 @@ package com.eliteessentials.services;
 
 import com.eliteessentials.model.*;
 import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.SpawnStorage;
 import com.eliteessentials.storage.WarpStorage;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -15,9 +15,11 @@ import java.util.logging.Logger;
  * Migrates data from fof1092's EssentialsPlus plugin to EliteEssentials.
  * 
  * Source: mods/fof1092_EssentialsPlus/
- * - kits/KITNAME.json (each kit is a separate file)
- * - homes.json (array of all player homes)
+ * - kits/{kitname}.json (each kit is a separate file)
+ * - homes.json (array of all player homes, grouped by uuid)
  * - warps.json (array of all warps)
+ * - spawns.json (array of spawn points)
+ * - users/{uuid}.json (per-player: balance, playtime, ipHistory, ignoredPlayers, etc.)
  */
 public class EssentialsPlusMigrationService {
     
@@ -26,6 +28,7 @@ public class EssentialsPlusMigrationService {
     
     private final File modsFolder;
     private final WarpStorage warpStorage;
+    private final SpawnStorage spawnStorage;
     private final KitService kitService;
     private final PlayerFileStorage playerFileStorage;
     
@@ -34,13 +37,20 @@ public class EssentialsPlusMigrationService {
     private int kitsImported = 0;
     private int playersImported = 0;
     private int homesImported = 0;
+    private int spawnsImported = 0;
+    private int usersImported = 0;
     private final List<String> errors = new ArrayList<>();
     
-    public EssentialsPlusMigrationService(File dataFolder, WarpStorage warpStorage, 
-                                          KitService kitService, PlayerFileStorage playerFileStorage) {
+    // Collected during kit migration: uuid -> (kitId -> lastUsed timestamp)
+    private final Map<UUID, Map<String, Long>> kitCooldownsFromKits = new HashMap<>();
+    
+    public EssentialsPlusMigrationService(File dataFolder, WarpStorage warpStorage,
+                                          SpawnStorage spawnStorage, KitService kitService,
+                                          PlayerFileStorage playerFileStorage) {
         // Go up from EliteEssentials folder to mods folder
         this.modsFolder = dataFolder.getParentFile();
         this.warpStorage = warpStorage;
+        this.spawnStorage = spawnStorage;
         this.kitService = kitService;
         this.playerFileStorage = playerFileStorage;
     }
@@ -63,56 +73,70 @@ public class EssentialsPlusMigrationService {
     
     /**
      * Run the full migration.
+     * @param force if true, overwrite existing warps, kits, homes, spawns, and player data
      * @return MigrationResult with stats and any errors
      */
-    public MigrationResult migrate() {
-        // Reset stats
+    public MigrationResult migrate(boolean force) {
+        // Reset stats and collected data
         warpsImported = 0;
         kitsImported = 0;
         playersImported = 0;
         homesImported = 0;
+        spawnsImported = 0;
+        usersImported = 0;
         errors.clear();
+        kitCooldownsFromKits.clear();
         
         File essentialsFolder = getEssentialsPlusFolder();
         
         if (!essentialsFolder.exists()) {
             errors.add("EssentialsPlus folder not found at: " + essentialsFolder.getAbsolutePath());
-            return new MigrationResult(false, warpsImported, kitsImported, playersImported, homesImported, errors);
+            return new MigrationResult(false, warpsImported, kitsImported, playersImported,
+                    homesImported, spawnsImported, usersImported, errors);
         }
         
         logger.info("[Migration] ========================================");
-        logger.info("[Migration] Starting EssentialsPlus migration...");
+        logger.info("[Migration] Starting EssentialsPlus migration" + (force ? " (FORCE MODE)" : "") + "...");
         logger.info("[Migration] Source: " + essentialsFolder.getAbsolutePath());
         logger.info("[Migration] ========================================");
         
         // Migrate warps
-        migrateWarps(essentialsFolder);
+        migrateWarps(essentialsFolder, force);
         
-        // Migrate kits
-        migrateKits(essentialsFolder);
+        // Migrate kits (also collects lastClaimed into kitCooldownsFromKits)
+        migrateKits(essentialsFolder, force);
+        
+        // Migrate spawns
+        migrateSpawns(essentialsFolder, force);
         
         // Migrate homes
-        migrateHomes(essentialsFolder);
+        migrateHomes(essentialsFolder, force);
+        
+        // Migrate user data (balance, playtime, ipHistory, ignoredPlayers, kit cooldowns)
+        migrateUserData(essentialsFolder, force);
         
         logger.info("[Migration] ========================================");
         logger.info("[Migration] EssentialsPlus migration complete!");
         logger.info("[Migration] - Warps: " + warpsImported);
         logger.info("[Migration] - Kits: " + kitsImported);
+        logger.info("[Migration] - Spawns: " + spawnsImported);
         logger.info("[Migration] - Players: " + playersImported);
         logger.info("[Migration] - Homes: " + homesImported);
+        logger.info("[Migration] - Users: " + usersImported);
         if (!errors.isEmpty()) {
             logger.info("[Migration] - Errors: " + errors.size());
         }
         logger.info("[Migration] ========================================");
         
-        return new MigrationResult(errors.isEmpty(), warpsImported, kitsImported, playersImported, homesImported, errors);
+        return new MigrationResult(errors.isEmpty(), warpsImported, kitsImported, playersImported,
+                homesImported, spawnsImported, usersImported, errors);
     }
     
     /**
      * Migrate warps from EssentialsPlus warps.json.
      * Format: { "version": "1.0", "warps": [ { "name": "...", "position": {...}, "rotation": {...}, "world": "..." } ] }
      */
-    private void migrateWarps(File essentialsFolder) {
+    private void migrateWarps(File essentialsFolder, boolean force) {
         File warpsFile = new File(essentialsFolder, "warps.json");
         if (!warpsFile.exists()) {
             logger.info("[Migration] No warps.json found, skipping warp migration.");
@@ -132,8 +156,7 @@ public class EssentialsPlusMigrationService {
             for (EssentialsPlusWarp epWarp : warpsData.warps) {
                 String warpName = epWarp.name;
                 
-                // Check if warp already exists
-                if (warpStorage.hasWarp(warpName)) {
+                if (!force && warpStorage.hasWarp(warpName)) {
                     logger.info("[Migration] - Skipping warp '" + warpName + "' (already exists)");
                     continue;
                 }
@@ -165,9 +188,9 @@ public class EssentialsPlusMigrationService {
     /**
      * Migrate kits from EssentialsPlus kits/ folder.
      * Each kit is a separate JSON file named after the kit.
-     * Format: { "version": "...", "name": "...", "cooldown": ms, "storage": {...}, "hotbar": {...}, "armor": {...}, ... }
+     * Format: { "version": "...", "name": "...", "cooldown": ms, "storage": {...}, "hotbar": {...}, "armor": {...}, "lastClaimed": { uuid: ts }, ... }
      */
-    private void migrateKits(File essentialsFolder) {
+    private void migrateKits(File essentialsFolder, boolean force) {
         File kitsFolder = new File(essentialsFolder, "kits");
         if (!kitsFolder.exists() || !kitsFolder.isDirectory()) {
             logger.info("[Migration] No kits folder found, skipping kit migration.");
@@ -184,7 +207,7 @@ public class EssentialsPlusMigrationService {
         
         for (File kitFile : kitFiles) {
             try {
-                migrateKitFile(kitFile);
+                migrateKitFile(kitFile, force);
             } catch (Exception e) {
                 String error = "Failed to migrate kit " + kitFile.getName() + ": " + e.getMessage();
                 logger.warning("[Migration] " + error);
@@ -193,7 +216,7 @@ public class EssentialsPlusMigrationService {
         }
     }
     
-    private void migrateKitFile(File kitFile) throws Exception {
+    private void migrateKitFile(File kitFile, boolean force) throws Exception {
         try (Reader reader = new InputStreamReader(new FileInputStream(kitFile), StandardCharsets.UTF_8)) {
             EssentialsPlusKit epKit = gson.fromJson(reader, EssentialsPlusKit.class);
             
@@ -204,8 +227,17 @@ public class EssentialsPlusMigrationService {
             
             String kitId = epKit.name.toLowerCase();
             
-            // Check if kit already exists
-            if (kitService.getKit(kitId) != null) {
+            // Collect lastClaimed for kit cooldown migration
+            if (epKit.lastClaimed != null && !epKit.lastClaimed.isEmpty()) {
+                for (Map.Entry<String, Long> entry : epKit.lastClaimed.entrySet()) {
+                    try {
+                        UUID uuid = UUID.fromString(entry.getKey());
+                        kitCooldownsFromKits.computeIfAbsent(uuid, k -> new HashMap<>()).put(kitId, entry.getValue());
+                    } catch (IllegalArgumentException ignored) { /* skip invalid uuid */ }
+                }
+            }
+            
+            if (!force && kitService.getKit(kitId) != null) {
                 logger.info("[Migration] - Skipping kit '" + kitId + "' (already exists)");
                 return;
             }
@@ -281,10 +313,82 @@ public class EssentialsPlusMigrationService {
 
     
     /**
+     * Migrate spawns from EssentialsPlus spawns.json.
+     * Format: { "version": "1.0", "spawns": [ { "position": {...}, "rotation": {...}, "world": "...", "mainSpawn": bool } ] }
+     */
+    private void migrateSpawns(File essentialsFolder, boolean force) {
+        File spawnsFile = new File(essentialsFolder, "spawns.json");
+        if (!spawnsFile.exists()) {
+            logger.info("[Migration] No spawns.json found, skipping spawn migration.");
+            return;
+        }
+        
+        logger.info("[Migration] Migrating EssentialsPlus spawns.json...");
+        
+        try (Reader reader = new InputStreamReader(new FileInputStream(spawnsFile), StandardCharsets.UTF_8)) {
+            EssentialsPlusSpawnsFile spawnsData = gson.fromJson(reader, EssentialsPlusSpawnsFile.class);
+            
+            if (spawnsData == null || spawnsData.spawns == null || spawnsData.spawns.isEmpty()) {
+                logger.info("[Migration] - No spawns found in file.");
+                return;
+            }
+            
+            // Group spawns by world to assign primary and names per world
+            Map<String, List<EssentialsPlusSpawn>> byWorld = new LinkedHashMap<>();
+            for (EssentialsPlusSpawn ep : spawnsData.spawns) {
+                if (ep == null || ep.world == null || ep.position == null || ep.rotation == null) continue;
+                byWorld.computeIfAbsent(ep.world, k -> new ArrayList<>()).add(ep);
+            }
+            
+            for (Map.Entry<String, List<EssentialsPlusSpawn>> entry : byWorld.entrySet()) {
+                String world = entry.getKey();
+                List<EssentialsPlusSpawn> worldSpawns = entry.getValue();
+                
+                if (!force && spawnStorage.hasSpawn(world)) {
+                    logger.info("[Migration] - Skipping spawn for world '" + world + "' (already exists)");
+                    continue;
+                }
+                
+                if (force && spawnStorage.hasSpawn(world)) {
+                    for (SpawnStorage.SpawnData existing : new ArrayList<>(spawnStorage.getSpawns(world))) {
+                        if (existing.name != null) {
+                            spawnStorage.removeSpawn(world, existing.name);
+                        }
+                    }
+                }
+                
+                EssentialsPlusSpawn mainSpawn = worldSpawns.stream().filter(s -> s.mainSpawn).findFirst().orElse(worldSpawns.get(0));
+                int idx = 0;
+                for (EssentialsPlusSpawn epSpawn : worldSpawns) {
+                    boolean primary = (epSpawn == mainSpawn);
+                    String name = primary ? "main" : ("spawn" + idx);
+                    idx++;
+                    
+                    SpawnStorage.SpawnData result = spawnStorage.addSpawn(
+                        world, name,
+                        epSpawn.position.x, epSpawn.position.y, epSpawn.position.z,
+                        epSpawn.rotation.y, epSpawn.rotation.x,
+                        primary, true,
+                        -1
+                    );
+                    if (result != null) {
+                        spawnsImported++;
+                        logger.info("[Migration] - Imported spawn for world: " + world + " (" + name + ")");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            String error = "Failed to migrate EssentialsPlus spawns: " + e.getMessage();
+            logger.severe("[Migration] " + error);
+            errors.add(error);
+        }
+    }
+    
+    /**
      * Migrate homes from EssentialsPlus homes.json.
      * Format: { "version": "1.0", "homes": [ { "uuid": "...", "name": "...", "position": {...}, "rotation": {...}, "world": "..." } ] }
      */
-    private void migrateHomes(File essentialsFolder) {
+    private void migrateHomes(File essentialsFolder, boolean force) {
         File homesFile = new File(essentialsFolder, "homes.json");
         if (!homesFile.exists()) {
             logger.info("[Migration] No homes.json found, skipping home migration.");
@@ -328,8 +432,7 @@ public class EssentialsPlusMigrationService {
                 for (EssentialsPlusHome epHome : playerHomes) {
                     String homeName = epHome.name;
                     
-                    // Skip if home already exists
-                    if (ourPlayer.hasHome(homeName)) {
+                    if (!force && ourPlayer.hasHome(homeName)) {
                         logger.info("[Migration] - Skipping home '" + homeName + "' for " + uuid + " (already exists)");
                         continue;
                     }
@@ -364,6 +467,150 @@ public class EssentialsPlusMigrationService {
         }
         
         logger.info("[Migration] - Migrated " + homesImported + " homes for " + playersImported + " players");
+    }
+    
+    /**
+     * Migrate user data from EssentialsPlus users/{uuid}.json.
+     * Format: { uuid, username, balance, playtime, firstJoinTimestamp, lastJoinTimestamp, ipHistory, ignoredPlayers }
+     * Also applies kit cooldowns from lastClaimed (collected during kit migration).
+     */
+    private void migrateUserData(File essentialsFolder, boolean force) {
+        File usersFolder = new File(essentialsFolder, "users");
+        if (!usersFolder.exists() || !usersFolder.isDirectory()) {
+            logger.info("[Migration] No users folder found, skipping user data migration.");
+            return;
+        }
+        
+        logger.info("[Migration] Migrating EssentialsPlus user data...");
+        
+        File[] userFiles = usersFolder.listFiles((dir, name) -> name.toLowerCase().endsWith(".json"));
+        if (userFiles == null || userFiles.length == 0) {
+            logger.info("[Migration] - No user files found.");
+            return;
+        }
+        
+        for (File userFile : userFiles) {
+            try {
+                String baseName = userFile.getName();
+                if (baseName.endsWith(".json")) baseName = baseName.substring(0, baseName.length() - 5);
+                UUID uuid;
+                try {
+                    uuid = UUID.fromString(baseName);
+                } catch (IllegalArgumentException e) {
+                    logger.warning("[Migration] - Skipping invalid user file (bad UUID): " + userFile.getName());
+                    continue;
+                }
+                
+                migrateUserFile(userFile, uuid, force);
+            } catch (Exception e) {
+                String error = "Failed to migrate user " + userFile.getName() + ": " + e.getMessage();
+                logger.warning("[Migration] " + error);
+                errors.add(error);
+            }
+        }
+    }
+    
+    private void migrateUserFile(File userFile, UUID uuid, boolean force) throws Exception {
+        try (Reader reader = new InputStreamReader(new FileInputStream(userFile), StandardCharsets.UTF_8)) {
+            EssentialsPlusUser epUser = gson.fromJson(reader, EssentialsPlusUser.class);
+            if (epUser == null) return;
+            
+            PlayerFile ourPlayer = playerFileStorage.getPlayer(uuid);
+            if (ourPlayer == null) {
+                ourPlayer = playerFileStorage.getPlayer(uuid, epUser.username != null ? epUser.username : "Unknown");
+            } else if (!force) {
+                // Only migrate if we have new data and force is set, or player is basically empty
+                boolean hasData = ourPlayer.getWallet() != 0 || ourPlayer.getPlayTime() != 0
+                        || !ourPlayer.getIpHistory().isEmpty() || !ourPlayer.getIgnoredPlayers().isEmpty();
+                if (hasData) {
+                    logger.info("[Migration] - Skipping user " + uuid + " (already has data)");
+                    return;
+                }
+            }
+            
+            boolean changed = false;
+            
+            // Username / name
+            if (epUser.username != null && !epUser.username.isEmpty() && (force || ourPlayer.getName() == null || "Unknown".equals(ourPlayer.getName()))) {
+                ourPlayer.setName(epUser.username);
+                changed = true;
+            }
+            
+            // Balance
+            if (epUser.balance != 0.0 && (force || ourPlayer.getWallet() == 0.0)) {
+                ourPlayer.setWallet(epUser.balance);
+                changed = true;
+            }
+            
+            // Playtime - EP uses milliseconds, we use seconds
+            if (epUser.playtime != 0 && (force || ourPlayer.getPlayTime() == 0)) {
+                long playtimeSeconds = epUser.playtime / 1000;
+                ourPlayer.setPlayTime(playtimeSeconds);
+                changed = true;
+            }
+            
+            // First join
+            if (epUser.firstJoinTimestamp != 0 && (force || ourPlayer.getFirstJoin() == 0)) {
+                ourPlayer.setFirstJoin(epUser.firstJoinTimestamp);
+                changed = true;
+            }
+            
+            // Last seen
+            if (epUser.lastJoinTimestamp != 0 && (force || ourPlayer.getLastSeen() == 0)) {
+                ourPlayer.setLastSeen(epUser.lastJoinTimestamp);
+                changed = true;
+            }
+            
+            // IP history
+            if (epUser.ipHistory != null && !epUser.ipHistory.isEmpty() && (force || ourPlayer.getIpHistory().isEmpty())) {
+                List<PlayerFile.IpHistoryEntry> entries = new ArrayList<>();
+                for (EssentialsPlusIpEntry ipEntry : epUser.ipHistory) {
+                    if (ipEntry != null && ipEntry.ip != null && !ipEntry.ip.isBlank()) {
+                        entries.add(new PlayerFile.IpHistoryEntry(ipEntry.ip, ipEntry.lastUsed));
+                    }
+                }
+                if (!entries.isEmpty()) {
+                    ourPlayer.setIpHistory(entries);
+                    changed = true;
+                }
+            }
+            
+            // Ignored players - EP stores as array of UUID strings (or usernames; assume UUIDs)
+            if (epUser.ignoredPlayers != null && !epUser.ignoredPlayers.isEmpty()) {
+                if (force || ourPlayer.getIgnoredPlayers().isEmpty()) {
+                    if (force) ourPlayer.clearIgnored();
+                    for (String ignored : epUser.ignoredPlayers) {
+                        if (ignored == null || ignored.isBlank()) continue;
+                        try {
+                            UUID ignoredUuid = UUID.fromString(ignored);
+                            ourPlayer.addIgnored(ignoredUuid);
+                            changed = true;
+                        } catch (IllegalArgumentException ignoredEx) {
+                            // Might be username - we can't resolve, skip
+                        }
+                    }
+                }
+            }
+            
+            // Kit cooldowns from lastClaimed (collected during kit migration)
+            Map<String, Long> cooldowns = kitCooldownsFromKits.get(uuid);
+            if (cooldowns != null && !cooldowns.isEmpty()) {
+                for (Map.Entry<String, Long> entry : cooldowns.entrySet()) {
+                    String kitId = entry.getKey();
+                    long lastUsed = entry.getValue();
+                    if (force || ourPlayer.getKitLastUsed(kitId) == 0L) {
+                        ourPlayer.getKitCooldowns().put(kitId, lastUsed);
+                        changed = true;
+                    }
+                }
+            }
+            
+            if (changed) {
+                playerFileStorage.saveAndMarkDirty(uuid);
+                usersImported++;
+                logger.info("[Migration] - Imported user data for " + uuid);
+            }
+        }
     }
 
     
@@ -425,6 +672,48 @@ public class EssentialsPlusMigrationService {
     }
     
     /**
+     * EssentialsPlus spawns.json file format.
+     */
+    private static class EssentialsPlusSpawnsFile {
+        String version;
+        List<EssentialsPlusSpawn> spawns;
+    }
+    
+    /**
+     * EssentialsPlus spawn entry.
+     */
+    private static class EssentialsPlusSpawn {
+        EssentialsPlusPosition position;
+        EssentialsPlusRotation rotation;
+        String world;
+        boolean mainSpawn;
+    }
+    
+    /**
+     * EssentialsPlus users/{uuid}.json format.
+     */
+    private static class EssentialsPlusUser {
+        String uuid;
+        String username;
+        boolean frozen;
+        long firstJoinTimestamp;
+        long lastJoinTimestamp;
+        long playtime;  // milliseconds
+        long currentSessionStart;
+        double balance;
+        List<EssentialsPlusIpEntry> ipHistory;
+        List<String> ignoredPlayers;
+    }
+    
+    /**
+     * EssentialsPlus IP history entry.
+     */
+    private static class EssentialsPlusIpEntry {
+        String ip;
+        long lastUsed;
+    }
+    
+    /**
      * EssentialsPlus kit format.
      */
     private static class EssentialsPlusKit {
@@ -469,15 +758,20 @@ public class EssentialsPlusMigrationService {
         private final int kitsImported;
         private final int playersImported;
         private final int homesImported;
+        private final int spawnsImported;
+        private final int usersImported;
         private final List<String> errors;
         
-        public MigrationResult(boolean success, int warpsImported, int kitsImported, 
-                              int playersImported, int homesImported, List<String> errors) {
+        public MigrationResult(boolean success, int warpsImported, int kitsImported,
+                              int playersImported, int homesImported, int spawnsImported,
+                              int usersImported, List<String> errors) {
             this.success = success;
             this.warpsImported = warpsImported;
             this.kitsImported = kitsImported;
             this.playersImported = playersImported;
             this.homesImported = homesImported;
+            this.spawnsImported = spawnsImported;
+            this.usersImported = usersImported;
             this.errors = new ArrayList<>(errors);
         }
         
@@ -486,10 +780,12 @@ public class EssentialsPlusMigrationService {
         public int getKitsImported() { return kitsImported; }
         public int getPlayersImported() { return playersImported; }
         public int getHomesImported() { return homesImported; }
+        public int getSpawnsImported() { return spawnsImported; }
+        public int getUsersImported() { return usersImported; }
         public List<String> getErrors() { return errors; }
         
         public int getTotalImported() {
-            return warpsImported + kitsImported + homesImported;
+            return warpsImported + kitsImported + homesImported + spawnsImported + usersImported;
         }
     }
 }
