@@ -3,7 +3,12 @@ package com.eliteessentials.commands.hytale;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.model.PlayerFile;
 import com.eliteessentials.permissions.Permissions;
+import com.eliteessentials.services.BanService;
+import com.eliteessentials.services.FreezeService;
+import com.eliteessentials.services.MuteService;
 import com.eliteessentials.services.PlayerService;
+import com.eliteessentials.services.TempBanService;
+import com.eliteessentials.services.WarnService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.HytaleSaveFileReader;
 import com.eliteessentials.util.MessageFormatter;
@@ -43,11 +48,24 @@ public class HytalePlayerInfoCommand extends AbstractPlayerCommand {
 
     private final ConfigManager configManager;
     private final PlayerService playerService;
+    private final MuteService muteService;
+    private final BanService banService;
+    private final TempBanService tempBanService;
+    private final FreezeService freezeService;
+    private final WarnService warnService;
 
-    public HytalePlayerInfoCommand(ConfigManager configManager, PlayerService playerService) {
+    public HytalePlayerInfoCommand(ConfigManager configManager, PlayerService playerService,
+                                    MuteService muteService, BanService banService,
+                                    TempBanService tempBanService, FreezeService freezeService,
+                                    WarnService warnService) {
         super(COMMAND_NAME, "View detailed player information");
         this.configManager = configManager;
         this.playerService = playerService;
+        this.muteService = muteService;
+        this.banService = banService;
+        this.tempBanService = tempBanService;
+        this.freezeService = freezeService;
+        this.warnService = warnService;
         setAllowsExtraArguments(true);
     }
 
@@ -223,6 +241,92 @@ public class HytalePlayerInfoCommand extends AbstractPlayerCommand {
                 Message.raw(defaultChat).color("#FFFFFF")
             ));
         }
+
+        // Punishment status section (only shown when viewing other players, i.e. admin view)
+        if (!isSelf) {
+            sendPunishmentInfo(ctx, data.getUuid());
+        }
+    }
+
+    /**
+     * Display punishment status: mute, ban, tempban, freeze, and warning count.
+     */
+    private void sendPunishmentInfo(CommandContext ctx, UUID targetId) {
+        ctx.sendMessage(MessageFormatter.formatWithFallback(
+            configManager.getMessage("playerinfoLabelPunishments"), "#FFAA00"));
+
+        // Mute status
+        if (muteService.isMuted(targetId)) {
+            MuteService.MuteEntry mute = muteService.getMuteEntry(targetId);
+            String reasonPart = mute.reason != null
+                ? configManager.getMessage("playerinfoPunishmentReason", "reason", mute.reason) : "";
+            ctx.sendMessage(MessageFormatter.formatWithFallback(
+                configManager.getMessage("playerinfoMuted", "by", mute.mutedBy, "reason", reasonPart), "#FFFFFF"));
+        } else {
+            ctx.sendMessage(MessageFormatter.formatWithFallback(
+                configManager.getMessage("playerinfoMutedNone"), "#FFFFFF"));
+        }
+
+        // Ban status (permanent or temp)
+        if (banService.isBanned(targetId)) {
+            BanService.BanEntry ban = banService.getBanEntry(targetId);
+            String reasonPart = ban.reason != null
+                ? configManager.getMessage("playerinfoPunishmentReason", "reason", ban.reason) : "";
+            ctx.sendMessage(MessageFormatter.formatWithFallback(
+                configManager.getMessage("playerinfoBanned", "by", ban.bannedBy, "reason", reasonPart), "#FFFFFF"));
+        } else if (tempBanService.isTempBanned(targetId)) {
+            TempBanService.TempBanEntry tempBan = tempBanService.getTempBanEntry(targetId);
+            String remaining = formatRemainingTime(tempBan.banEndTimestamp);
+            String reasonPart = tempBan.reason != null
+                ? configManager.getMessage("playerinfoPunishmentReason", "reason", tempBan.reason) : "";
+            ctx.sendMessage(MessageFormatter.formatWithFallback(
+                configManager.getMessage("playerinfoTempBanned", "by", tempBan.bannedBy,
+                    "time", remaining, "reason", reasonPart), "#FFFFFF"));
+        } else {
+            ctx.sendMessage(MessageFormatter.formatWithFallback(
+                configManager.getMessage("playerinfoBannedNone"), "#FFFFFF"));
+        }
+
+        // Freeze status
+        if (freezeService.isFrozen(targetId)) {
+            ctx.sendMessage(MessageFormatter.formatWithFallback(
+                configManager.getMessage("playerinfoFrozen"), "#FFFFFF"));
+        } else {
+            ctx.sendMessage(MessageFormatter.formatWithFallback(
+                configManager.getMessage("playerinfoFrozenNone"), "#FFFFFF"));
+        }
+
+        // Warning count
+        int warnCount = warnService.getWarningCount(targetId);
+        if (warnCount > 0) {
+            ctx.sendMessage(MessageFormatter.formatWithFallback(
+                configManager.getMessage("playerinfoWarnings", "count", String.valueOf(warnCount)), "#FFFFFF"));
+        } else {
+            ctx.sendMessage(MessageFormatter.formatWithFallback(
+                configManager.getMessage("playerinfoWarningsNone"), "#FFFFFF"));
+        }
+    }
+
+    /**
+     * Format remaining time until a timestamp (e.g. "2h 15m").
+     */
+    private static String formatRemainingTime(long endTimestamp) {
+        long diff = endTimestamp - System.currentTimeMillis();
+        if (diff <= 0) return "expired";
+        long seconds = diff / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+        long days = hours / 24;
+        if (days > 0) {
+            long h = hours % 24;
+            return h > 0 ? days + "d " + h + "h" : days + "d";
+        }
+        if (hours > 0) {
+            long m = minutes % 60;
+            return m > 0 ? hours + "h " + m + "m" : hours + "h";
+        }
+        if (minutes > 0) return minutes + "m";
+        return seconds + "s";
     }
 
     private boolean isPlayerOnline(@Nonnull UUID uuid) {

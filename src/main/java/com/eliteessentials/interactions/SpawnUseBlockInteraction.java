@@ -14,6 +14,7 @@ import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.CooldownHandler;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.client.SimpleBlockInteraction;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.client.UseBlockInteraction;
+import com.hypixel.hytale.server.core.modules.interaction.BlockHarvestUtils;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -100,9 +101,12 @@ public class SpawnUseBlockInteraction extends UseBlockInteraction {
         if (!isPickupProtection && !isInteractionProtection) return false;
 
         // When only pickup protection is enabled (not full interaction protection),
-        // allow functional blocks (doors, chests, benches, etc.) to still work
+        // allow functional blocks (doors, chests, benches, etc.) to still work.
+        // Also skip non-harvestable blocks — they can't be picked up, so blocking
+        // them just spams messages (e.g. ground blocks under braziers/NPCs).
         if (isPickupProtection && !isInteractionProtection) {
             if (isFunctionalBlock(world, targetBlock)) return false;
+            if (!isHarvestableBlock(world, targetBlock)) return false;
         }
 
         // Check if player is in a protected area
@@ -149,5 +153,15 @@ public class SpawnUseBlockInteraction extends UseBlockInteraction {
                blockName.contains("switch") ||
                blockName.contains("gate") ||
                blockName.contains("anvil");
+    }
+
+    /**
+     * Check if a block is harvestable (can be picked up by F-key interaction).
+     * Non-harvestable blocks (regular ground, walls, etc.) should not trigger
+     * pickup protection messages since they can't be picked up anyway.
+     */
+    private boolean isHarvestableBlock(World world, Vector3i targetBlock) {
+        var blockType = world.getBlockType(targetBlock);
+        return BlockHarvestUtils.shouldPickupByInteraction(blockType);
     }
 }

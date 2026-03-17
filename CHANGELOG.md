@@ -1,11 +1,33 @@
 # Changelog
 
-## 1.1.20 - 2026-03-15
+## 1.1.20 - 2026-03-16
 
 ### Added
+* **Console support for player commands** — `/repair`, `/heal`, `/god`, `/fly`, `/flyspeed`, and `/clearinv` can now be executed from console (or NPCs) targeting a specific player. All commands follow the same pattern as `/rtp`:
+  * `/repair <player> all` or `/repair all <player>` — repair all of a player's items from console
+  * `/repair <player>` — repair a player's held item from console
+  * `/heal <player>` — heal a player from console
+  * `/god <player>` — toggle god mode on a player from console
+  * `/fly <player>` — toggle flight on a player from console
+  * `/flyspeed <speed> <player>` — set a player's fly speed from console
+  * `/clearinv <player>` — clear a player's inventory from console
+  * Console always has permission; cooldowns and costs only apply to self-use; target player is notified
 * **AFK players excluded from sleep percentage** — AFK players no longer count toward the total player count for night skip. If 10 players are online and 3 are AFK, only 7 count toward the sleep threshold. Config: `afk.excludeFromSleep` (default: `true`). If all players are AFK, the sleep check is skipped entirely
 * **Console command execution delay** — Workaround for a native Hytale CommandManager bug that can cause `IllegalStateException: No match found` when multiple commands run back-to-back (e.g. kit commands, playtime reward commands). Commands are now staggered by a configurable delay. Config: `commandExecutionDelayMs` (default: `150`). Set to `0` to disable (previous behaviour). Applies to kits, starter kits, and playtime rewards
 * **Playtime reward command staggering** — When multiple playtime rewards fire in the same check (e.g. 1h and 2h), their command batches are now staggered (200 ms between batches) so they don’t overlap and trigger the native command parser bug
+* **Warning system** — `/warn <player> [reason]` issues a warning to a player. Warnings are tracked and persisted in `warns.json`. When a configurable threshold is reached (default: 3), an automatic punishment is applied (tempban by default, 24h). Config options under `warn`:
+  * `warn.enabled` (default: `true`) — enable/disable the warning system
+  * `warn.autoPunishThreshold` (default: `3`) — number of warnings before auto-punishment. Set to `0` to disable
+  * `warn.autoPunishAction` — `"tempban"` (default) or `"ban"` (permanent)
+  * `warn.autoPunishTempbanMinutes` (default: `1440` / 24h) — duration for tempban auto-punishment
+  * `warn.clearAfterPunishment` (default: `true`) — clear warnings after auto-punishment is applied
+  * `/warnings <player>` — view a player's full warning history with dates, issuer, and reasons
+  * `/clearwarnings <player>` — clear all warnings for a player
+  * **Permissions:** `eliteessentials.admin.warn`, `eliteessentials.admin.clearwarnings`
+* **Punishment history in /playerinfo** — When viewing another player's info (`/playerinfo <player>`), staff now see a "Punishment Status" section showing current mute status, ban/tempban status (with remaining time), freeze status, and warning count
+
+### Improved
+* **Safe landing on /fly disable** — When flight is toggled off (via `/fly` or timed expiry), the player is now teleported to the ground instead of falling. Uses the same ground detection as `/top`, scanning downward for the highest solid block. Skips the teleport if the player is less than 3 blocks above ground
 
 ### Fixed
 * **Console command failures** — Commands executed as console (e.g. `give (player) Item --quantity=2` from playtime rewards or kits) could fail with `No match found` due to a race in Hytale’s parser. Staggering command execution avoids the issue

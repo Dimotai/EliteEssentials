@@ -14,6 +14,7 @@ import com.hypixel.hytale.server.core.entity.InteractionContext;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.interaction.Interactions;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.CooldownHandler;
+import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.RootInteraction;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.SimpleInstantInteraction;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -70,7 +71,7 @@ public class SpawnUseEntityInteraction extends SimpleInstantInteraction {
 
         // --- Spawn protection check ---
         if (type != InteractionType.Primary && type != InteractionType.Secondary) {
-            if (shouldBlockInteraction(context, store, targetRef, entityStore)) {
+            if (shouldBlockInteraction(type, context, store, targetRef, entityStore)) {
                 failInteraction(context);
                 return;
             }
@@ -105,7 +106,8 @@ public class SpawnUseEntityInteraction extends SimpleInstantInteraction {
         context.getState().state = InteractionState.Failed;
     }
 
-    private boolean shouldBlockInteraction(InteractionContext context, Store<EntityStore> store,
+    private boolean shouldBlockInteraction(InteractionType type, InteractionContext context,
+                                           Store<EntityStore> store,
                                            Ref<EntityStore> targetRef, EntityStore entityStore) {
         SpawnProtectionService service = EliteEssentials.getInstance().getSpawnProtectionService();
         if (service == null || !service.isEnabled()) return false;
@@ -116,6 +118,21 @@ public class SpawnUseEntityInteraction extends SimpleInstantInteraction {
 
         String worldName = entityStore.getWorld() != null ? entityStore.getWorld().getName() : null;
         if (worldName == null || !service.hasSpawnInWorld(worldName)) return false;
+
+        // When only pickup protection is enabled (not full interaction protection),
+        // let Use interactions through (braziers, doors, NPC dialogue, etc.).
+        // Also allow NPCs specifically regardless of interaction type.
+        // Only block Pick/Pickup types which are actual item pickups.
+        // Decoration block pickups (flowers, pebbles) are handled by SpawnUseBlockInteraction.
+        if (isPickupProtection && !isInteractionProtection) {
+            // NPCs (merchants, quest givers) always pass through
+            NPCEntity npc = store.getComponent(targetRef, NPCEntity.getComponentType());
+            if (npc != null) return false;
+            // Use interactions (brazier toggle, etc.) pass through
+            if (type == InteractionType.Use) return false;
+            // Only block actual pickup types
+            if (type != InteractionType.Pick && type != InteractionType.Pickup) return false;
+        }
 
         // Check target entity position
         TransformComponent transform = store.getComponent(targetRef, TransformComponent.getComponentType());
@@ -132,4 +149,5 @@ public class SpawnUseEntityInteraction extends SimpleInstantInteraction {
         player.sendMessage(Message.raw(msg).color(MSG_COLOR));
         return true;
     }
+
 }

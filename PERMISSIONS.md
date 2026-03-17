@@ -35,8 +35,8 @@ Commands are either available to Everyone or Admin only:
 | `/warpsetdesc <warp> <desc>` | Set warp description | Admin |
 | `/kit` | Open kit selection GUI | Everyone |
 | `/kit <name>` | Claim specific kit | Everyone |
-| `/kitcreate <name>` | Create kit from inventory | Admin |
-| `/kitdelete <name>` | Delete a kit | Admin |
+| `/kit create <name> [cooldown] [onetime]` | Create kit from inventory | Admin |
+| `/kit delete <name>` | Delete a kit | Admin |
 | `/msg <player> <message>` | Private message | Everyone |
 | `/reply <message>` | Reply to last message | Everyone |
 | `/motd` | View message of the day | Everyone |
@@ -68,6 +68,20 @@ Commands are either available to Everyone or Admin only:
 | `/eco` | Economy admin | Admin |
 | `/alias` | Manage command aliases | Admin |
 | `/afk` | Toggle AFK status | Everyone |
+| `/warn <player> [reason]` | Add a warning to a player | Admin |
+| `/warnings [player]` | List warnings (self or target) | Everyone (self) / Admin (others) |
+| `/clearwarnings <player>` | Clear all warnings for a player | Admin |
+| `/trash [size]` | Open disposal window to trash items | Everyone |
+| `/repair [all]` | Repair item in hand or all items | Admin |
+| `/vanish` | Toggle invisibility to other players | Admin |
+| `/invsee <player>` | View (and optionally modify) player inventory | Admin |
+| `/sendmessage` | Send formatted message to player/group/all | Admin |
+| `/discord` | View discord info | Everyone |
+| `/gc [chat] <message>` | Group chat | Everyone |
+| `/gcset [chat]` | Set default group chat | Everyone |
+| `/chats` | List available chat channels | Everyone |
+| `/gcspy` | Spy on all group chats | Admin |
+| `/eemigration <source>` | Migrate data from other plugins | Admin |
 | `/eliteessentials reload` | Reload config | Admin |
 | `/ee groupsync lp-to-ee` | Sync LuckPerms groups into config.json | Admin |
 | `/ee groupsync hp-to-ee` | Sync HyperPerms groups into config.json | Admin |
@@ -149,6 +163,8 @@ eliteessentials
 │   │   ├── set                     # /setspawn command (Admin)
 │   │   ├── delete                  # /delspawn command (Admin)
 │   │   ├── list                    # /spawns command (Admin)
+│   │   ├── setfirstjoin            # /setfirstjoinspawn (Admin)
+│   │   ├── delfirstjoin            # /delfirstjoinspawn (Admin)
 │   │   ├── protection
 │   │   │   └── bypass              # Bypass spawn protection
 │   │   └── bypass
@@ -217,8 +233,20 @@ eliteessentials
 └── admin
     ├── *                           # Full admin access (wildcard)
     ├── reload                      # /eliteessentials reload
-    ├── groupsync                   # /ee groupsync (sync LP <-> EE config)
-    └── alias                       # /alias commands
+    ├── groupsync                   # /ee groupsync (sync LP/HP <-> EE config)
+    ├── alias                       # /alias commands
+    ├── sendmessage                 # /sendmessage command
+    ├── rtp                         # /rtp <player> [world] (admin/console)
+    ├── mute                        # /mute command
+    ├── unmute                      # /unmute command
+    ├── ban                         # /ban command
+    ├── tempban                     # /tempban command
+    ├── ipban                       # /ipban command
+    ├── unban                       # /unban command
+    ├── unipban                     # /unipban command
+    ├── freeze                      # /freeze command
+    ├── warn                        # /warn, /warnings commands
+    └── clearwarnings               # /clearwarnings command
 ```
 
 ## Permission Reference (Advanced Mode)
@@ -363,6 +391,18 @@ eliteessentials
 | `eliteessentials.admin.reload` | Reload configuration |
 | `eliteessentials.admin.alias` | Manage command aliases |
 | `eliteessentials.admin.greetings` | Manage greeting rules |
+| `eliteessentials.admin.sendmessage` | /sendmessage command |
+| `eliteessentials.admin.rtp` | /rtp &lt;player&gt; [world] (admin/console) |
+| `eliteessentials.admin.mute` | /mute command |
+| `eliteessentials.admin.unmute` | /unmute command |
+| `eliteessentials.admin.ban` | /ban command |
+| `eliteessentials.admin.tempban` | /tempban command |
+| `eliteessentials.admin.ipban` | /ipban command |
+| `eliteessentials.admin.unban` | /unban command |
+| `eliteessentials.admin.unipban` | /unipban command |
+| `eliteessentials.admin.freeze` | /freeze command |
+| `eliteessentials.admin.warn` | /warn and /warnings commands |
+| `eliteessentials.admin.clearwarnings` | /clearwarnings command |
 
 ### Cost Bypass Permissions
 
@@ -377,6 +417,11 @@ eliteessentials
 | `eliteessentials.bypass.cost.rtp` | Bypass RTP cost |
 | `eliteessentials.bypass.cost.tpa` | Bypass TPA cost |
 | `eliteessentials.bypass.cost.tpahere` | Bypass TPAHere cost |
+| `eliteessentials.bypass.cost.fly` | Bypass fly cost-per-minute |
+| `eliteessentials.bypass.cost.heal` | Bypass heal cost |
+| `eliteessentials.bypass.cost.repair` | Bypass /repair cost |
+| `eliteessentials.bypass.cost.repair.all` | Bypass /repair all cost |
+| `eliteessentials.bypass.cost.top` | Bypass top cost |
 
 ## Wildcard Support
 
@@ -429,6 +474,14 @@ eliteessentials.command.misc.heal.others
 eliteessentials.command.misc.joindate.others
 eliteessentials.command.misc.playtime.others
 eliteessentials.command.home.limit.20
+eliteessentials.admin.mute
+eliteessentials.admin.unmute
+eliteessentials.admin.warn
+eliteessentials.admin.clearwarnings
+eliteessentials.admin.ban
+eliteessentials.admin.tempban
+eliteessentials.admin.unban
+eliteessentials.admin.freeze
 ```
 
 ### Admin Group

@@ -36,6 +36,7 @@ import com.eliteessentials.services.TempBanService;
 import com.eliteessentials.services.IpBanService;
 import com.eliteessentials.services.FlyService;
 import com.eliteessentials.services.FreezeService;
+import com.eliteessentials.services.WarnService;
 import com.eliteessentials.services.PlayerService;
 import com.eliteessentials.services.PlayTimeRewardService;
 import com.eliteessentials.services.RtpService;
@@ -121,6 +122,7 @@ public class EliteEssentials extends JavaPlugin {
     private TempBanService tempBanService;
     private IpBanService ipBanService;
     private FreezeService freezeService;
+    private WarnService warnService;
     private NickService nickService;
     private GreetingStorage greetingStorage;
     private GreetingService greetingService;
@@ -247,6 +249,7 @@ public class EliteEssentials extends JavaPlugin {
         tempBanService = new TempBanService(this.dataFolder);
         ipBanService = new IpBanService(this.dataFolder);
         freezeService = new FreezeService(this.dataFolder);
+        warnService = new WarnService(this.dataFolder);
 
         // Wire mute/ignore services into group chat for filtering
         groupChatService.setMuteService(muteService);
@@ -738,7 +741,8 @@ public class EliteEssentials extends JavaPlugin {
         
         // Player info commands (always register - useful utility)
         getCommandRegistry().registerCommand(new HytaleSeenCommand(configManager, playerService));
-        getCommandRegistry().registerCommand(new HytalePlayerInfoCommand(configManager, playerService));
+        getCommandRegistry().registerCommand(new HytalePlayerInfoCommand(configManager, playerService,
+                muteService, banService, tempBanService, freezeService, warnService));
         registeredCommands.append("/seen, /playerinfo, ");
         
         // Joindate command
@@ -797,6 +801,14 @@ public class EliteEssentials extends JavaPlugin {
         if (config.freeze.enabled) {
             getCommandRegistry().registerCommand(new HytaleFreezeCommand(freezeService, configManager, playerFileStorage));
             registeredCommands.append(", /freeze");
+        }
+        
+        // Warn commands (admin only)
+        if (config.warn.enabled) {
+            getCommandRegistry().registerCommand(new HytaleWarnCommand(warnService, banService, tempBanService, configManager, playerFileStorage));
+            getCommandRegistry().registerCommand(new HytaleWarningsCommand(warnService, configManager, playerFileStorage));
+            getCommandRegistry().registerCommand(new HytaleClearWarningsCommand(warnService, configManager, playerFileStorage));
+            registeredCommands.append(", /warn, /warnings, /clearwarnings");
         }
         
         // Nick commands
@@ -963,6 +975,10 @@ public class EliteEssentials extends JavaPlugin {
         return freezeService;
     }
     
+    public WarnService getWarnService() {
+        return warnService;
+    }
+    
     public NickService getNickService() {
         return nickService;
     }
@@ -1080,6 +1096,9 @@ public class EliteEssentials extends JavaPlugin {
         }
         if (freezeService != null) {
             freezeService.reload();
+        }
+        if (warnService != null) {
+            warnService.reload();
         }
         
         // Restart periodic play time save (interval may have changed)

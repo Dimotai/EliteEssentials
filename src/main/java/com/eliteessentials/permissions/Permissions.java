@@ -254,6 +254,8 @@ public final class Permissions {
     public static final String ADMIN_IPBAN = ADMIN_BASE + ".ipban";
     public static final String ADMIN_UNIPBAN = ADMIN_BASE + ".unipban";
     public static final String ADMIN_FREEZE = ADMIN_BASE + ".freeze";
+    public static final String ADMIN_WARN = ADMIN_BASE + ".warn";
+    public static final String ADMIN_CLEARWARNINGS = ADMIN_BASE + ".clearwarnings";
 
     // ==================== ECONOMY CATEGORY ====================
     // eliteessentials.command.economy.*

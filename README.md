@@ -2,13 +2,13 @@
 
 A comprehensive server essentials plugin for Hytale that brings everything you need to run a professional multiplayer server. From advanced teleportation systems and home management to group-based chat formatting and customizable kits - EliteEssentials has it all.
 
-**Fully modular design** - Enable only the features you want. **LuckPerms compatible** - Seamless integration with advanced permission systems. **Actively developed** - Regular updates with new features and improvements.
+**Fully modular design** - Enable only the features you want. **LuckPerms & HyperPerms compatible** - Seamless integration with advanced permission systems. **Actively developed** - Regular updates with new features and improvements.
 
 ## Features
 
 ### Full Localization Support
 
-All 60+ player-facing messages are configurable in `messages.json`. Translate your server to any language!
+All 300+ player-facing messages are configurable in `messages.json`. Translate your server to any language!
 
 - Placeholder support: `{player}`, `{seconds}`, `{name}`, `{count}`, `{max}`, `{location}`
 - Config auto-migrates - existing settings preserved when updating
@@ -21,12 +21,12 @@ All 60+ player-facing messages are configurable in `messages.json`. Translate yo
 - Configurable max homes per player
 
 ### Server Warps
-- **`/warp [name]`** - Teleport to a server warp (lists warps if no name)
-- **`/warps`** - List all available warps with coordinates
-- **`/setwarp <name> [all|op]`** - Create a warp (Admin)
-- **`/delwarp <name>`** - Delete a warp (Admin)
-- **`/warpadmin`** - Admin panel for managing warps
-- Permission levels: `all` (everyone) or `op` (admins only)
+- **`/warp`** - Open warp GUI or use **`/warp <name>`** to teleport to a warp
+- **`/warp list`** - Text list of all warps
+- **`/warpadmin`** - Admin panel: create, delete, or inspect warps
+- **`/warpsetperm <warp> <all|op>`** - Set warp permission (Admin)
+- **`/warpsetdesc <warp> <desc>`** - Set warp description shown in GUI (Admin)
+- Permission levels: `all` (everyone) or `op` (admins only); per-warp permissions in advanced mode
 - Persisted to `warps.json`
 
 ### Back Command
@@ -54,18 +54,19 @@ All 60+ player-facing messages are configurable in `messages.json`. Translate yo
 
 ### Spawn
 
-- **`/spawn`** - Teleport to the world spawn point
-- **Per-world or global spawn**: Configure whether `/spawn` uses per-world spawns or always goes to main world
-  - `spawn.perWorld: false` (default) - Always teleport to main world spawn
-  - `spawn.perWorld: true` - Teleport to current world's spawn
-  - `spawn.mainWorld` - Specify which world is the main world
-- **Spawn teleport delay**: Configure delay before teleporting players to spawn on join
-  - `spawn.teleportDelaySeconds: 2` (default) - Delay in seconds before teleporting
-  - Increase this value if players experience client crashes or timeouts during login
-  - Applies to both first-join and every-login teleport features
+- **`/spawn [name]`** - Teleport to spawn (nearest or named when per-world spawns are enabled)
+- **`/setspawn [name]`** - Set spawn at your location (Admin); when per-world, use name for current world
+- **`/delspawn <name>`** - Delete a named spawn point (Admin)
+- **`/spawns`** - List spawn points in current world (Admin)
+- **`/setfirstjoinspawn`** - Set where new players spawn (Admin)
+- **`/delfirstjoinspawn`** - Remove first-join spawn (Admin)
+- **Per-world or global spawn**: `spawn.perWorld: false` (default) = main world spawn; `true` = current world's spawn. Use `spawn.mainWorld` to set the main world.
+- **Spawn on login**: `spawn.teleportOnEveryLogin` rewrites player save on disconnect so they load directly at spawn (no teleport flash).
 
 ### Kit System
-- **`/kit [name]`** - Open kit GUI or claim a specific kit
+- **`/kit`** - Open kit GUI; **`/kit <name>`** - Claim a specific kit (alias: `/kits` for GUI)
+- **`/kit create <name> [cooldown] [onetime]`** - Create a kit from your inventory (Admin)
+- **`/kit delete <name>`** - Delete a kit (Admin)
 - **One-time kits** - Kits that can only be claimed once per player
 - **Cooldown kits** - Configurable cooldown between claims
 - **Starter Kit** - Automatically given to new players on first join
@@ -73,16 +74,18 @@ All 60+ player-facing messages are configurable in `messages.json`. Translate yo
 - Fully configurable items, cooldowns, and permissions per kit
 
 ### Utility Commands
-- **`/god`** - Toggle invincibility (become immune to all damage)
-- **`/heal`** - Fully restore your health
-- **`/fly`** - Toggle creative flight without creative mode
-- **`/flyspeed <speed>`** - Set fly speed multiplier (10-100, or 'reset' for default)
-- **`/top`** - Teleport to the highest block at your current position
+- **`/god`** - Toggle invincibility (Admin)
+- **`/heal [player]`** - Fully restore health (self: Everyone when enabled; others: Admin)
+- **`/fly`** - Toggle creative flight (Admin); optional cost-per-minute for limited paid flight
+- **`/flyspeed <1-100|reset>`** - Set fly speed multiplier (Admin)
+- **`/top`** - Teleport to the highest block at your current position (Admin)
 - **`/msg <player> <message>`** - Send a private message
 - **`/reply`** - Reply to the last private message (aliases: /r)
-- **`/clearinv`** - Clear all items from your inventory (Admin, aliases: /clearinventory, /ci)
-- **`/invsee <player>`** - View and edit another player's inventory (Admin)
-  - Uses the same approach as Hytale's built-in `/inv see` command
+- **`/clearinv [player]`** - Clear own or target's inventory (Admin, aliases: /clearinventory, /ci)
+- **`/trash [size]`** - Open disposal window to trash items (optional 1–45 slots)
+- **`/repair [all]`** - Repair held item or all items (Admin)
+- **`/vanish`** - Toggle invisibility with fake join/leave messages (Admin)
+- **`/invsee <player>`** - View (and optionally modify) another player's inventory (Admin)
 
 ### Command Aliases
 - **`/alias create <name> <command> [permission]`** - Create custom shortcut commands (Admin)
@@ -141,11 +144,8 @@ All 60+ player-facing messages are configurable in `messages.json`. Translate yo
   - Group-based chats tied to LuckPerms groups (e.g., admin, moderator)
   - Permission-based chats tied to permission nodes (e.g., trade chat)
   - Range-limited chats for proximity-based communication
+  - **`/gcset [chat]`** - Set your default group chat for `/gc`
   - Configure channels in `groupchat.json`
-- **Group Chat Formatting** - Use the same prefix/color formatting from regular chat in group chat
-  - When enabled, player names in group chat use LuckPerms prefixes/suffixes and group priorities
-  - Configurable format template: `{channel_color}{channel_prefix} {chat_format}`
-  - Admin spy mode to monitor all channels with `/gcspy`
 - **Join Messages** - Automatic messages when players join
   - First join messages broadcast to everyone
   - Fully customizable in config
@@ -194,9 +194,14 @@ All 60+ player-facing messages are configurable in `messages.json`. Translate yo
 ### Freeze System (Admin)
 - **`/freeze <player>`** - Toggle freeze on a player (prevents all movement)
 - Frozen players cannot move, jump, or fly
-- Freeze state persists across restarts in `freezes.json`
 - Frozen players are notified when frozen/unfrozen
 - Perfect for moderating rule-breakers or conducting investigations
+
+### Warning System (Admin)
+- **`/warn <player> [reason]`** - Add a warning to a player
+- **`/warnings [player]`** - List warnings for self or target
+- **`/clearwarnings <player>`** - Clear all warnings for a player
+- Warnings stored in `warns.json`; optional auto-punish (ban or tempban) at configurable threshold when warning count is reached
 
 ### Player Info Commands
 - **`/seen <player>`** - Check when a player was last online
@@ -208,7 +213,7 @@ All 60+ player-facing messages are configurable in `messages.json`. Translate yo
   - No argument shows your own playtime
   - Includes current session for accurate live totals
   - Separate permission for viewing other players' playtime
-- **Player data** - Per-player files (`data/players/{uuid}.json`) include IP history (last 50 IPs with timestamps) for moderation and alt detection
+- **Player data** - Per-player files (`mods/EliteEssentials/players/<uuid>.json`) store homes, back locations, kit claims, mail, wallet, playtime, nickname, ignore list, and more
 
 ### Help System
 - **`/eehelp`** - Shows all commands the player has permission to use (alias: /ehelp)
@@ -285,7 +290,7 @@ All settings are fully configurable via `mods/EliteEssentials/config.json`:
 - **Home limits** - Max homes per player
 - **Back history** - How many locations to remember
 - **Death tracking** - Enable/disable /back to death location
-- **Messages** - 60+ configurable messages for full localization
+- **Messages** - 300+ configurable messages for full localization
 
 Config file is automatically created on first server start with sensible defaults. Existing configs auto-migrate when updating to new versions.
 
@@ -296,67 +301,85 @@ Config file is automatically created on first server start with sensible default
 | `/home [name]` | Teleport to home | Everyone |
 | `/sethome [name]` | Set a home | Everyone |
 | `/delhome [name]` | Delete a home | Everyone |
-| `/homes` | List your homes | Everyone |
+| `/homes` | List your homes (GUI) | Everyone |
 | `/back` | Return to previous location | Everyone |
-| `/spawn` | Teleport to spawn | Everyone |
+| `/spawn [name]` | Teleport to spawn | Everyone |
+| `/setspawn [name]` | Set spawn | Admin |
+| `/delspawn <name>` | Delete named spawn | Admin |
+| `/spawns` | List spawn points | Admin |
+| `/setfirstjoinspawn` | Set first-join spawn | Admin |
+| `/delfirstjoinspawn` | Remove first-join spawn | Admin |
 | `/rtp` | Random teleport | Everyone |
+| `/rtp <player> [world]` | RTP a player (Admin/console) | Admin |
 | `/tpa <player>` | Request teleport | Everyone |
 | `/tpahere <player>` | Request player to you | Everyone |
 | `/tpaccept` | Accept teleport request | Everyone |
 | `/tpdeny` | Deny teleport request | Everyone |
 | `/tphere <player>` | Teleport player to you | Admin |
+| `/top` | Teleport to highest block | Admin |
+| `/warp` / `/warp <name>` | Warp GUI or teleport to warp | Everyone |
+| `/warp list` | List warps | Everyone |
+| `/warpadmin` | Warp admin panel | Admin |
+| `/warpsetperm` / `/warpsetdesc` | Set warp perm/description | Admin |
+| `/kit` / `/kit <name>` | Kit GUI or claim kit | Everyone |
+| `/kit create <name> [cooldown] [onetime]` | Create kit | Admin |
+| `/kit delete <name>` | Delete kit | Admin |
 | `/list` | Show online players | Everyone |
 | `/afk` | Toggle AFK status | Everyone |
-| `/ignore <player>` | Ignore a player's messages | Everyone |
-| `/ignore list` | List ignored players | Everyone |
-| `/unignore <player>` | Stop ignoring a player | Everyone |
-| `/unignore all` | Stop ignoring all players | Everyone |
+| `/ignore <player>` / `/ignore list` | Ignore or list ignored | Everyone |
+| `/unignore <player\|all>` | Stop ignoring | Everyone |
 | `/joindate [player]` | View first join date | Everyone |
 | `/playtime [player]` | View total play time | Everyone |
-| `/warp [name]` | Teleport to warp | Everyone |
-| `/warps` | List all warps | Everyone |
-| `/kit [name]` | Open kit GUI or claim kit | Everyone |
+| `/playerinfo [player]` | Detailed player info | Everyone / Admin* |
+| `/seen <player>` | When player was last online | Everyone |
 | `/god` | Toggle invincibility | Admin |
-| `/heal` | Fully restore health | Admin |
+| `/heal [player]` | Restore health | Everyone / Admin* |
 | `/fly` | Toggle creative flight | Admin |
-| `/flyspeed <speed>` | Set fly speed (10-100) | Admin |
-| `/top` | Teleport to highest block | Admin |
+| `/flyspeed <1-100\|reset>` | Set fly speed | Admin |
+| `/clearinv [player]` | Clear inventory | Admin |
+| `/trash [size]` | Disposal window | Everyone |
+| `/repair [all]` | Repair items | Admin |
+| `/vanish` | Toggle invisibility | Admin |
+| `/invsee <player>` | View/edit player inventory | Admin |
 | `/msg <player> <msg>` | Private message | Everyone |
 | `/reply` | Reply to last message | Everyone |
 | `/motd` | Display MOTD | Everyone |
 | `/rules` | Display server rules | Everyone |
+| `/discord` | Display discord info | Everyone |
 | `/broadcast <message>` | Broadcast to all players | Admin |
+| `/clearchat` | Clear chat for all players | Admin |
+| `/sendmessage` | Send formatted message (Admin) | Admin |
+| `/gc [chat] <message>` | Group chat | Everyone |
+| `/gcset [chat]` | Set default group chat | Everyone |
+| `/chats` | List chat channels | Everyone |
+| `/gcspy` | Spy on group chats | Admin |
 | `/mute <player> [reason]` | Mute a player | Admin |
 | `/unmute <player>` | Unmute a player | Admin |
-| `/ban <player> [reason]` | Permanently ban a player | Admin |
-| `/tempban <player> <time> [reason]` | Temporarily ban a player | Admin |
-| `/ipban <player> [reason]` | Ban a player's IP address | Admin |
-| `/unban <player>` | Unban a player | Admin |
-| `/unipban <player>` | Remove an IP ban | Admin |
-| `/freeze <player>` | Toggle freeze on a player | Admin |
-| `/clearinv` | Clear all inventory items | Admin |
-| `/invsee <player>` | View player's inventory | Admin |
-| `/clearchat` | Clear chat for all players | Admin |
-| `/setwarp <name> [perm]` | Create warp | Admin |
-| `/delwarp <name>` | Delete warp | Admin |
-| `/warpadmin` | Warp admin panel | Admin |
+| `/warn <player> [reason]` | Add warning | Admin |
+| `/warnings [player]` | List warnings | Everyone / Admin* |
+| `/clearwarnings <player>` | Clear warnings | Admin |
+| `/ban <player> [reason]` | Permanently ban | Admin |
+| `/tempban <player> <time> [reason]` | Temporarily ban | Admin |
+| `/ipban <player> [reason]` | IP ban | Admin |
+| `/unban <player>` | Unban | Admin |
+| `/unipban <player>` | Remove IP ban | Admin |
+| `/freeze <player>` | Toggle freeze | Admin |
 | `/sleeppercent [%]` | Set sleep percentage | Admin |
-| `/wallet` | View your balance | Everyone |
-| `/wallet <player>` | View another's balance | Everyone* |
-| `/pay <player> <amount>` | Send money to player | Everyone |
-| `/baltop` | View richest players | Everyone |
-| `/eco` | Economy admin commands | Admin |
-| `/mail` | Send/receive offline mail | Everyone |
-| `/nick <nickname>` | Set your display nickname | Admin |
-| `/nick off` | Clear your nickname | Admin |
-| `/nick <player> <nickname\|off>` | Set/clear another player's nickname | Admin+ |
-| `/realname <name>` | Look up real username behind a nickname | Admin |
-| `/alias` | Manage command aliases | Admin |
+| `/wallet` / `/wallet <player>` | View balance | Everyone |
+| `/wallet set/add/remove <player> <amount>` | Admin balance | Admin |
+| `/pay <player> <amount>` | Send money | Everyone |
+| `/baltop` | Richest players | Everyone |
+| `/eco` | Economy admin | Admin |
+| `/mail` | Send/receive mail | Everyone |
+| `/nick <nickname>` / `/nick off` | Set/clear nickname | Admin |
+| `/nick <player> <nickname\|off>` | Set/clear other's nickname | Admin+ |
+| `/realname <name>` | Look up real name | Admin |
+| `/alias` | Manage aliases | Admin |
 | `/eehelp` | Show available commands | Everyone |
-| `/eliteessentials reload` | Reload configuration | Admin |
-| `/eemigration <source> [force]` | Migrate from EssentialsCore/EssentialsPlus/Hyssentials/HomesPlus | Admin |
+| `/eliteessentials reload` | Reload config | Admin |
+| `/eemigration <source>` | Migrate from other plugins | Admin |
 
-*In simple mode (default), "Everyone" commands work for all players, "Admin" requires OP.*
+*Self = Everyone when enabled; others = Admin. In simple mode (default), "Admin" requires OP.*
 
 ## Permissions
 
@@ -366,19 +389,18 @@ EliteEssentials supports two permission modes via `advancedPermissions` in confi
 - **Everyone** commands work for all players
 - **Admin** commands require OP or `eliteessentials.admin.*`
 
-### Advanced Mode (LuckPerms Compatible!)
+### Advanced Mode (LuckPerms / HyperPerms Compatible)
 Full granular permissions following `eliteessentials.command.<category>.<action>` structure:
 
 | Category | Example Permissions |
 |----------|---------------------|
-| Home | `command.home.home`, `command.home.sethome`, `command.home.limit.5`, `command.home.warmup.0` |
-| Teleport | `command.tp.tpa`, `command.tp.back`, `command.tp.back.ondeath`, `command.tp.warmup.rtp.5` |
-| Warp | `command.warp.use`, `command.warp.<warpname>`, `command.warp.warmup.0` |
-| Spawn | `command.spawn.use`, `command.spawn.protection.bypass`, `command.spawn.warmup.0` |
-| Kit | `command.kit.use`, `command.kit.<kitname>`, `command.kit.bypass.cooldown`, `command.kit.bypass.onetime` |
-| Ignore | `command.misc.ignore` |
-| Invsee | `command.misc.invsee` |
-| Admin | `admin.mute`, `admin.unmute` |
+| Home | `command.home.home`, `command.home.sethome`, `command.home.limit.5`, `command.home.bypass.cooldown` |
+| Teleport | `command.tp.tpa`, `command.tp.back`, `command.tp.back.ondeath`, `command.tp.bypass.warmup.rtp` |
+| Warp | `command.warp.use`, `command.warp.list`, `command.warp.<warpname>`, `command.warp.bypass.cooldown` |
+| Spawn | `command.spawn.use`, `command.spawn.set`, `command.spawn.delete`, `command.spawn.list`, `command.spawn.setfirstjoin`, `command.spawn.delfirstjoin`, `command.spawn.protection.bypass` |
+| Kit | `command.kit.use`, `command.kit.gui`, `command.kit.<kitname>`, `command.kit.bypass.cooldown`, `command.kit.bypass.onetime` |
+| Misc | `command.misc.msg`, `command.misc.heal`, `command.misc.heal.others`, `command.misc.repair`, `command.misc.repair.all`, `command.misc.ignore`, `command.misc.invsee`, `command.misc.groupchat`, `command.misc.groupchat.spy` |
+| Admin | `admin.reload`, `admin.alias`, `admin.mute`, `admin.unmute`, `admin.ban`, `admin.freeze`, `admin.warn`, `admin.clearwarnings` |
 | Bypass | `command.home.bypass.cooldown`, `command.tp.bypass.warmup`, `bypass.cost` |
 
 See [PERMISSIONS.md](PERMISSIONS.md) for the complete permission reference.

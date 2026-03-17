@@ -80,6 +80,7 @@ public class PluginConfig {
     public MuteConfig mute = new MuteConfig();
     public BanConfig ban = new BanConfig();
     public FreezeConfig freeze = new FreezeConfig();
+    public WarnConfig warn = new WarnConfig();
     public NickConfig nick = new NickConfig();
     public FirstJoinSpawnConfig firstJoinSpawn = new FirstJoinSpawnConfig();
     public GreetingsConfig greetings = new GreetingsConfig();
@@ -534,6 +535,19 @@ public class PluginConfig {
         messages.put("playerinfoCoordinatesLastSaved", " (last saved)");
         messages.put("playerinfoNoData", "No player data found.");
         messages.put("playerinfoNoDataFor", "No player data for {player}.");
+
+        // ==================== PLAYERINFO PUNISHMENT SECTION ====================
+        messages.put("playerinfoLabelPunishments", "--- Punishment Status ---");
+        messages.put("playerinfoMuted", "Muted: &cYes &7(by {by}{reason})");
+        messages.put("playerinfoMutedNone", "Muted: &aNo");
+        messages.put("playerinfoBanned", "Banned: &cYes &7(by {by}{reason})");
+        messages.put("playerinfoTempBanned", "Temp Banned: &cYes &7(by {by}, {time} remaining{reason})");
+        messages.put("playerinfoBannedNone", "Banned: &aNo");
+        messages.put("playerinfoFrozen", "Frozen: &cYes");
+        messages.put("playerinfoFrozenNone", "Frozen: &aNo");
+        messages.put("playerinfoWarnings", "Warnings: &e{count}");
+        messages.put("playerinfoWarningsNone", "Warnings: &a0");
+        messages.put("playerinfoPunishmentReason", ", reason: {reason}");
         
         // ==================== IGNORE ====================
         messages.put("ignoreUsage", "&cUsage: &e/ignore <player> &7or &e/ignore list");
@@ -604,6 +618,21 @@ public class PluginConfig {
         messages.put("unfreezeSuccess", "&a{player} &ahas been unfrozen.");
         messages.put("unfreezeNotify", "&aYou have been unfrozen.");
         messages.put("freezeStillFrozen", "&cYou are still frozen. You cannot move.");
+
+        // ==================== WARN ====================
+        messages.put("warnUsage", "&cUsage: &e/warn <player> [reason]");
+        messages.put("warnSelf", "&cYou cannot warn yourself.");
+        messages.put("warnSuccess", "&a{player} &ahas been warned. &7(Total: {count})");
+        messages.put("warnNotify", "&cYou have been warned by an administrator. &7(Warnings: {count})");
+        messages.put("warnNotifyReason", "&cYou have been warned. Reason: &e{reason} &7(Warnings: {count})");
+        messages.put("warnThresholdReached", "&c{player} &creached &e{count} &cwarnings - auto &e{action} &capplied.");
+        messages.put("warnAutoPunishReason", "Reached {count}/{threshold} warnings (auto-punishment)");
+        messages.put("warningsUsage", "&cUsage: &e/warnings <player>");
+        messages.put("warningsNone", "&a{player} &ahas no warnings.");
+        messages.put("warningsHeader", "&b=== &fWarnings for {player} &7({count}) &b===");
+        messages.put("warningsEntry", "&e{number}. &7{date} &7by &f{by}&7: &f{reason}");
+        messages.put("clearwarningsUsage", "&cUsage: &e/clearwarnings <player>");
+        messages.put("clearwarningsSuccess", "&aCleared &e{count} &awarning(s) for &f{player}&a.");
 
         // ==================== WORLD BLACKLIST ====================
         messages.put("commandBlacklistedWorld", "&cThis command cannot be used in this world.");
@@ -1664,6 +1693,36 @@ public class PluginConfig {
     public static class FreezeConfig {
         /** Enable/disable the /freeze command */
         public boolean enabled = true;
+    }
+
+    // ==================== WARN ====================
+
+    public static class WarnConfig {
+        /** Enable/disable the /warn, /warnings, /clearwarnings commands */
+        public boolean enabled = true;
+
+        /**
+         * Number of warnings before automatic punishment is applied.
+         * Set to 0 to disable auto-punishment.
+         */
+        public int autoPunishThreshold = 3;
+
+        /**
+         * Action to take when threshold is reached: "ban" or "tempban".
+         */
+        public String autoPunishAction = "tempban";
+
+        /**
+         * Duration in minutes for tempban auto-punishment.
+         * Only used when autoPunishAction is "tempban".
+         * Default: 1440 (24 hours).
+         */
+        public int autoPunishTempbanMinutes = 1440;
+
+        /**
+         * Whether to clear all warnings after auto-punishment is applied.
+         */
+        public boolean clearAfterPunishment = true;
     }
 
     // ==================== NICK ====================
