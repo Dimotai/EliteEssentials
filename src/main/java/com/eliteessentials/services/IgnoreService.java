@@ -1,7 +1,7 @@
 package com.eliteessentials.services;
 
 import com.eliteessentials.model.PlayerFile;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 
 import java.util.*;
 import java.util.logging.Logger;
@@ -9,9 +9,9 @@ import java.util.logging.Logger;
 public class IgnoreService {
 
     private static final Logger logger = Logger.getLogger("EliteEssentials");
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
 
-    public IgnoreService(PlayerFileStorage playerFileStorage) {
+    public IgnoreService(PlayerStorageProvider playerFileStorage) {
         this.playerFileStorage = playerFileStorage;
     }
 

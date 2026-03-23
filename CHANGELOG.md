@@ -1,5 +1,52 @@
 # Changelog
 
+## 2.0.0 - 2026-03-23
+
+### Added
+* **SQL database storage support** — EliteEssentials can now persist all data to a SQL database instead of JSON files. Choose between three storage backends via `config.json`:
+  * `"json"` (default) — existing JSON file storage, no changes to current behavior
+  * `"h2"` — embedded H2 database, zero setup required. Database file stored in the plugin data folder. Great for single-server setups that want SQL performance and data integrity without installing external software
+  * `"mysql"` — external MySQL/MariaDB database for multi-server networks. Player data is shared across all connected servers. Reads fresh data on player join to avoid stale caches
+* **Storage provider abstraction** — all services now depend on `PlayerStorageProvider` and `GlobalStorageProvider` interfaces instead of concrete storage classes. JSON and SQL backends implement these interfaces identically
+* **Connection pooling** — SQL storage uses HikariCP for efficient connection management. Pool size, idle connections, and timeout are all configurable
+* **Automatic schema management** — SQL tables and indexes are created automatically on first startup. Schema versioning via a metadata table supports incremental migrations in future updates
+* **Async SQL writes** — write operations run on a background thread to avoid blocking the server main thread. In-memory cache for online players matches existing JSON behavior
+* **JSON-to-SQL migration command** — `/eemigration sql [force]` reads all existing JSON data (players, warps, spawns, first-join spawn) and writes it into the configured SQL database
+  * Reports progress during migration (records processed)
+  * Continues on individual record failures, logging the specific UUID/identifier
+  * Reports summary on completion (total migrated, failed, elapsed time)
+  * Refuses to run when `storageType` is `"json"`
+  * Checks if target tables are empty before migrating; use `force` to overwrite
+* **Configurable table prefix** — all SQL table names use a configurable prefix (default `ee_`) to avoid conflicts when sharing a database with other plugins
+* **Graceful shutdown** — all pending SQL writes are flushed before the connection pool closes. Pool waits up to 30 seconds for active queries to complete
+* **Multi-server freshness** — when using MySQL, player data is loaded fresh from the database on join rather than relying on stale cache. Data is flushed to DB and evicted from cache on disconnect
+* **Post-migration cleanup** — `/eemigration cleanup` moves migrated JSON files (`players/`, `warps.json`, `spawn.json`, `firstjoinspawn.json`, `player_index.json`) into a `backup/` subfolder. Only available when `storageType` is not `"json"`. Keeps the data folder clean after switching to SQL
+
+### Configuration
+* New `storage` section in `config.json`:
+  ```json
+  "storage": {
+    "storageType": "json",
+    "mysql": {
+      "host": "localhost",
+      "port": 3306,
+      "database": "eliteessentials",
+      "username": "root",
+      "password": "",
+      "tablePrefix": "ee_",
+      "connectionPool": {
+        "maximumPoolSize": 10,
+        "minimumIdle": 2,
+        "connectionTimeout": 30000
+      }
+    }
+  }
+  ```
+* `storageType` options: `"json"` (default, file-based), `"h2"` (embedded SQL database, stored in plugin folder), `"mysql"` (remote MySQL/MariaDB server)
+* The `mysql` section is only used when `storageType` is `"mysql"`
+* Unrecognized `storageType` values log an error and fall back to `"json"`
+* Schema migration failures log an error and fall back to `"json"` to prevent data corruption
+
 ## 1.1.21 - 2026-03-17
 
 ### Fixed

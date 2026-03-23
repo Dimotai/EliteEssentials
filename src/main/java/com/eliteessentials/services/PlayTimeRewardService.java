@@ -5,7 +5,7 @@ import com.eliteessentials.config.PluginConfig;
 import com.eliteessentials.model.PlayTimeReward;
 import com.eliteessentials.model.PlayerFile;
 import com.eliteessentials.storage.PlayTimeRewardStorage;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.CommandExecutor;
 import com.eliteessentials.util.MessageFormatter;
 import com.hypixel.hytale.server.core.Message;
@@ -29,7 +29,7 @@ public class PlayTimeRewardService {
     private final PlayTimeRewardStorage storage;  // For reward definitions only
     private final PlayerService playerService;
     private final ConfigManager configManager;
-    private PlayerFileStorage playerFileStorage;
+    private PlayerStorageProvider playerFileStorage;
     
     private ScheduledExecutorService scheduler;
     private final Map<UUID, Long> sessionStartTimes = new ConcurrentHashMap<>();
@@ -45,7 +45,7 @@ public class PlayTimeRewardService {
     /**
      * Set the player file storage (called after initialization).
      */
-    public void setPlayerFileStorage(PlayerFileStorage storage) {
+    public void setPlayerFileStorage(PlayerStorageProvider storage) {
         this.playerFileStorage = storage;
     }
     

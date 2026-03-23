@@ -49,14 +49,39 @@ public class SpawnStorage {
     private static final String FIRST_JOIN_SPAWN_FILE = "firstjoinspawn.json";
 
     private final File dataFolder;
+    private final GlobalStorageProvider storageProvider;
     private Map<String, List<SpawnData>> spawns = new HashMap<>();
     private SpawnData firstJoinSpawn;
 
     public SpawnStorage(File dataFolder) {
+        this(dataFolder, null);
+    }
+
+    public SpawnStorage(File dataFolder, GlobalStorageProvider storageProvider) {
         this.dataFolder = dataFolder;
+        this.storageProvider = storageProvider;
+    }
+
+    /**
+     * Returns true when using SQL storage (provider is not WarpStorage / JSON mode).
+     */
+    private boolean useSqlStorage() {
+        return storageProvider != null && !(storageProvider instanceof WarpStorage);
     }
 
     public void load() {
+        if (useSqlStorage()) {
+            // SQL mode: delegate to storage provider
+            storageProvider.loadSpawns();
+            Map<String, List<SpawnData>> loaded = storageProvider.getAllSpawns();
+            spawns = loaded != null ? new HashMap<>(loaded) : new HashMap<>();
+            firstJoinSpawn = storageProvider.getFirstJoinSpawn();
+            int totalSpawns = spawns.values().stream().mapToInt(List::size).sum();
+            logger.info("Loaded " + totalSpawns + " spawn point(s) across " + spawns.size() + " world(s) from SQL storage.");
+            return;
+        }
+
+        // JSON mode: load from files
         loadFirstJoinSpawn();
         File file = new File(dataFolder, "spawn.json");
         logger.info("Looking for spawn.json at: " + file.getAbsolutePath());
@@ -171,6 +196,15 @@ public class SpawnStorage {
     }
 
     public void save() {
+        if (useSqlStorage()) {
+            // SQL mode: delegate to storage provider
+            storageProvider.setAllSpawns(spawns);
+            storageProvider.saveSpawns();
+            logger.info("Spawn data saved to SQL storage.");
+            return;
+        }
+
+        // JSON mode: save to file
         if (!dataFolder.exists()) {
             dataFolder.mkdirs();
         }
@@ -460,15 +494,26 @@ public class SpawnStorage {
     public boolean deleteFirstJoinSpawn() {
         if (firstJoinSpawn == null) return false;
         firstJoinSpawn = null;
-        File file = new File(dataFolder, FIRST_JOIN_SPAWN_FILE);
-        if (file.exists()) {
-            file.delete();
+
+        if (useSqlStorage()) {
+            storageProvider.deleteFirstJoinSpawn();
+        } else {
+            File file = new File(dataFolder, FIRST_JOIN_SPAWN_FILE);
+            if (file.exists()) {
+                file.delete();
+            }
         }
         logger.info("First-join spawn point removed.");
         return true;
     }
 
     private void loadFirstJoinSpawn() {
+        if (useSqlStorage()) {
+            // Already loaded in load() via storageProvider.getFirstJoinSpawn()
+            return;
+        }
+
+        // JSON mode: load from file
         File file = new File(dataFolder, FIRST_JOIN_SPAWN_FILE);
         if (!file.exists()) {
             firstJoinSpawn = null;
@@ -490,6 +535,13 @@ public class SpawnStorage {
     }
 
     private void saveFirstJoinSpawn() {
+        if (useSqlStorage()) {
+            storageProvider.saveFirstJoinSpawn(firstJoinSpawn);
+            logger.info("First-join spawn saved to SQL storage.");
+            return;
+        }
+
+        // JSON mode: save to file
         if (!dataFolder.exists()) {
             dataFolder.mkdirs();
         }

@@ -1,9 +1,9 @@
 package com.eliteessentials.services;
 
 import com.eliteessentials.model.*;
+import com.eliteessentials.storage.GlobalStorageProvider;
 import com.eliteessentials.storage.PlayerFileStorage;
 import com.eliteessentials.storage.SpawnStorage;
-import com.eliteessentials.storage.WarpStorage;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -31,7 +31,7 @@ public class EssentialsCoreMigrationService {
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     
     private final File modsFolder;
-    private final WarpStorage warpStorage;
+    private final GlobalStorageProvider warpStorage;
     private final SpawnStorage spawnStorage;
     private final KitService kitService;
     private final PlayerFileStorage playerFileStorage;
@@ -47,7 +47,7 @@ public class EssentialsCoreMigrationService {
     private int kitCooldownsImported = 0;
     private final List<String> errors = new ArrayList<>();
     
-    public EssentialsCoreMigrationService(File dataFolder, WarpStorage warpStorage, SpawnStorage spawnStorage,
+    public EssentialsCoreMigrationService(File dataFolder, GlobalStorageProvider warpStorage, SpawnStorage spawnStorage,
                                           KitService kitService, PlayerFileStorage playerFileStorage) {
         // Go up from EliteEssentials folder to mods folder
         this.modsFolder = dataFolder.getParentFile();

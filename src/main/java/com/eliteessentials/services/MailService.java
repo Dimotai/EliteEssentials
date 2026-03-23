@@ -3,7 +3,7 @@ package com.eliteessentials.services;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.model.MailMessage;
 import com.eliteessentials.model.PlayerFile;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,13 +23,13 @@ public class MailService {
     
     private static final Logger logger = Logger.getLogger("EliteEssentials");
     
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
     private final ConfigManager configManager;
     
     // Spam protection: sender UUID -> (recipient UUID -> last send timestamp)
     private final Map<UUID, Map<UUID, Long>> sendCooldowns = new ConcurrentHashMap<>();
     
-    public MailService(PlayerFileStorage playerFileStorage, ConfigManager configManager) {
+    public MailService(PlayerStorageProvider playerFileStorage, ConfigManager configManager) {
         this.playerFileStorage = playerFileStorage;
         this.configManager = configManager;
     }

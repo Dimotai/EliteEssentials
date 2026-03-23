@@ -3,7 +3,7 @@ package com.eliteessentials.commands.hytale;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.MuteService;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
 import com.eliteessentials.util.PlayerSuggestionProvider;
@@ -23,10 +23,10 @@ public class HytaleMuteCommand extends AbstractPlayerCommand {
 
     private final MuteService muteService;
     private final ConfigManager configManager;
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
 
     public HytaleMuteCommand(MuteService muteService, ConfigManager configManager,
-                              PlayerFileStorage playerFileStorage) {
+                              PlayerStorageProvider playerFileStorage) {
         super("mute", "Mute a player");
         this.muteService = muteService;
         this.configManager = configManager;

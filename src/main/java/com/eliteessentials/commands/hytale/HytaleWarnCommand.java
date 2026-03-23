@@ -5,7 +5,7 @@ import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.BanService;
 import com.eliteessentials.services.TempBanService;
 import com.eliteessentials.services.WarnService;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
 import com.eliteessentials.util.PlayerSuggestionProvider;
@@ -36,11 +36,11 @@ public class HytaleWarnCommand extends AbstractPlayerCommand {
     private final BanService banService;
     private final TempBanService tempBanService;
     private final ConfigManager configManager;
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
 
     public HytaleWarnCommand(WarnService warnService, BanService banService,
                              TempBanService tempBanService, ConfigManager configManager,
-                             PlayerFileStorage playerFileStorage) {
+                             PlayerStorageProvider playerFileStorage) {
         super("warn", "Warn a player");
         this.warnService = warnService;
         this.banService = banService;

@@ -5,7 +5,7 @@ import com.eliteessentials.model.Location;
 import com.eliteessentials.model.PlayerFile;
 import com.eliteessentials.permissions.PermissionService;
 import com.eliteessentials.permissions.Permissions;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 
 import java.util.*;
 import java.util.logging.Logger;
@@ -19,10 +19,10 @@ public class BackService {
     private static final Logger logger = Logger.getLogger("EliteEssentials");
 
     private final ConfigManager configManager;
-    private final PlayerFileStorage storage;
+    private final PlayerStorageProvider storage;
     private int maxHistory = 5;
 
-    public BackService(ConfigManager configManager, PlayerFileStorage storage) {
+    public BackService(ConfigManager configManager, PlayerStorageProvider storage) {
         this.configManager = configManager;
         this.storage = storage;
         this.maxHistory = configManager.getBackMaxHistory();

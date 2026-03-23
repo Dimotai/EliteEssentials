@@ -5,7 +5,7 @@ plugins {
 }
 
 group = findProperty("pluginGroup") as String? ?: "com.eliteessentials"
-version = findProperty("pluginVersion") as String? ?: "1.1.21"
+version = findProperty("pluginVersion") as String? ?: "2.0.0"
 description = findProperty("pluginDescription") as String? ?: "Essential commands for Hytale servers"
 
 repositories {
@@ -42,6 +42,11 @@ dependencies {
     // JSON handling
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("org.jetbrains:annotations:24.1.0")
+
+    // SQL storage support
+    implementation("com.zaxxer:HikariCP:6.2.1")
+    implementation("com.h2database:h2:2.3.232")
+    implementation("com.mysql:mysql-connector-j:9.1.0")
     
     // Test dependencies
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
@@ -80,8 +85,17 @@ tasks {
         archiveClassifier.set("")
         
         relocate("com.google.gson", "com.eliteessentials.libs.gson")
+        relocate("com.zaxxer.hikari", "com.eliteessentials.libs.hikari")
+        // Note: H2 is NOT relocated because its internal engine uses class name lookups
+        // and service loaders that break when packages are renamed
+        relocate("com.mysql", "com.eliteessentials.libs.mysql")
         
-        minimize()
+        minimize {
+            // JDBC drivers are loaded via reflection (Class.forName), so the shadow
+            // plugin can't detect usage. Exclude them from minimization.
+            exclude(dependency("com.h2database:h2:.*"))
+            exclude(dependency("com.mysql:mysql-connector-j:.*"))
+        }
     }
     
     test {

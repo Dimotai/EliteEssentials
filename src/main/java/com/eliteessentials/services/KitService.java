@@ -2,7 +2,7 @@ package com.eliteessentials.services;
 
 import com.eliteessentials.model.Kit;
 import com.eliteessentials.model.PlayerFile;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -25,7 +25,7 @@ public class KitService {
 
     private final File dataFolder;
     private final Map<String, Kit> kits = new LinkedHashMap<>();
-    private PlayerFileStorage playerFileStorage;
+    private PlayerStorageProvider playerFileStorage;
     
     // Lock for file I/O operations to prevent concurrent writes
     private final Object fileLock = new Object();
@@ -38,7 +38,7 @@ public class KitService {
     /**
      * Set the player file storage (called after initialization).
      */
-    public void setPlayerFileStorage(PlayerFileStorage storage) {
+    public void setPlayerFileStorage(PlayerStorageProvider storage) {
         this.playerFileStorage = storage;
     }
 

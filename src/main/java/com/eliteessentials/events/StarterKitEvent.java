@@ -3,7 +3,7 @@ package com.eliteessentials.events;
 import com.eliteessentials.model.Kit;
 import com.eliteessentials.model.KitItem;
 import com.eliteessentials.services.KitService;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.CommandExecutor;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -28,7 +28,7 @@ public class StarterKitEvent {
     private static final Logger logger = Logger.getLogger("EliteEssentials");
     
     private final KitService kitService;
-    private PlayerFileStorage playerFileStorage;
+    private PlayerStorageProvider playerFileStorage;
 
     public StarterKitEvent(@Nonnull KitService kitService) {
         this.kitService = kitService;
@@ -37,7 +37,7 @@ public class StarterKitEvent {
     /**
      * Set the player file storage (called after initialization).
      */
-    public void setPlayerFileStorage(PlayerFileStorage storage) {
+    public void setPlayerFileStorage(PlayerStorageProvider storage) {
         this.playerFileStorage = storage;
     }
 
@@ -77,9 +77,8 @@ public class StarterKitEvent {
                 return;
             }
             
-            // Check if player file exists on disk
-            java.io.File playerFile = new java.io.File(playerFileStorage.getPlayersFolder(), uuid.toString() + ".json");
-            boolean isNewPlayer = !playerFile.exists();
+            // Check if this is a new player using storage provider
+            boolean isNewPlayer = !playerFileStorage.hasPlayer(uuid);
             
             if (!isNewPlayer) {
                 logger.info("Player " + username + " has joined before, skipping starter kit");

@@ -3,7 +3,7 @@ package com.eliteessentials.commands.hytale;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.WarnService;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
 import com.eliteessentials.util.PlayerSuggestionProvider;
@@ -28,10 +28,10 @@ public class HytaleClearWarningsCommand extends AbstractPlayerCommand {
 
     private final WarnService warnService;
     private final ConfigManager configManager;
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
 
     public HytaleClearWarningsCommand(WarnService warnService, ConfigManager configManager,
-                                       PlayerFileStorage playerFileStorage) {
+                                       PlayerStorageProvider playerFileStorage) {
         super("clearwarnings", "Clear a player's warnings");
         this.warnService = warnService;
         this.configManager = configManager;

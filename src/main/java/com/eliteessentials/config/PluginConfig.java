@@ -85,6 +85,11 @@ public class PluginConfig {
     public FirstJoinSpawnConfig firstJoinSpawn = new FirstJoinSpawnConfig();
     public GreetingsConfig greetings = new GreetingsConfig();
     
+    // ==================== STORAGE ====================
+    
+    /** Storage backend configuration (json, h2, or mysql) */
+    public StorageConfig storage = new StorageConfig();
+    
     // ==================== MESSAGES ====================
     
     /**
@@ -1832,5 +1837,31 @@ public class PluginConfig {
          * Minimum 1 second recommended.
          */
         public int delaySeconds = 2;
+    }
+
+    // ==================== STORAGE ====================
+
+    public static class StorageConfig {
+        /** Storage type: "json" (default), "h2", or "mysql" */
+        public String storageType = "json";
+
+        /** MySQL/MariaDB connection settings (only used when storageType is "mysql") */
+        public MysqlConfig mysql = new MysqlConfig();
+
+        public static class MysqlConfig {
+            public String host = "localhost";
+            public int port = 3306;
+            public String database = "eliteessentials";
+            public String username = "root";
+            public String password = "";
+            public String tablePrefix = "ee_";
+            public ConnectionPoolConfig connectionPool = new ConnectionPoolConfig();
+        }
+
+        public static class ConnectionPoolConfig {
+            public int maximumPoolSize = 10;
+            public int minimumIdle = 2;
+            public long connectionTimeout = 30000;
+        }
     }
 }

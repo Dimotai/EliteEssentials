@@ -13,7 +13,7 @@ import com.eliteessentials.services.PlayerService;
 import com.eliteessentials.services.IpBanService;
 import com.eliteessentials.services.PlayTimeRewardService;
 import com.eliteessentials.storage.MotdStorage;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.storage.SpawnStorage;
 import com.eliteessentials.util.MessageFormatter;
 import com.eliteessentials.util.TeleportGuard;
@@ -69,7 +69,7 @@ public class JoinQuitListener {
     private final MotdStorage motdStorage;
     private final PlayerService playerService;
     private final ScheduledExecutorService scheduler;
-    private PlayerFileStorage playerFileStorage;
+    private PlayerStorageProvider playerFileStorage;
     private SpawnStorage spawnStorage;
     private com.eliteessentials.services.VanishService vanishService;
     private MailService mailService;
@@ -98,7 +98,7 @@ public class JoinQuitListener {
     /**
      * Set the player file storage (called after initialization).
      */
-    public void setPlayerFileStorage(PlayerFileStorage storage) {
+    public void setPlayerFileStorage(PlayerStorageProvider storage) {
         this.playerFileStorage = storage;
     }
 

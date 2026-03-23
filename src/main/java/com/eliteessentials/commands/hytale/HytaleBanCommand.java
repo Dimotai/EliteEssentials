@@ -3,7 +3,7 @@ package com.eliteessentials.commands.hytale;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.BanService;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
 import com.eliteessentials.util.PlayerSuggestionProvider;
@@ -23,9 +23,9 @@ public class HytaleBanCommand extends AbstractPlayerCommand {
 
     private final BanService banService;
     private final ConfigManager configManager;
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
 
-    public HytaleBanCommand(BanService banService, ConfigManager configManager, PlayerFileStorage playerFileStorage) {
+    public HytaleBanCommand(BanService banService, ConfigManager configManager, PlayerStorageProvider playerFileStorage) {
         super("ban", "Permanently ban a player");
         this.banService = banService;
         this.configManager = configManager;

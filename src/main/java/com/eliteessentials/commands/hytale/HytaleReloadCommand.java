@@ -71,6 +71,8 @@ public class HytaleReloadCommand extends CommandBase {
             ctx.sendMessage(Message.raw("  hyssentials - Import homes and warps from Hyssentials").color("#AAAAAA"));
             ctx.sendMessage(Message.raw("  essentialsplus - Import warps, kits, spawns, homes, and user profiles from EssentialsPlus").color("#AAAAAA"));
             ctx.sendMessage(Message.raw("  homesplus - Import homes from HomesPlus").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw("  sql - Migrate JSON data into configured SQL database").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw("  cleanup - Move migrated JSON files into backup/ folder").color("#AAAAAA"));
             ctx.sendMessage(Message.raw("  force - Add after source to overwrite existing data").color("#AAAAAA"));
         } else {
             ctx.sendMessage(Message.raw("Unknown action. Available: reload, groupsync, migration").color("#FF5555"));

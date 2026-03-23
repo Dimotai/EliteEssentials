@@ -7,7 +7,7 @@ import com.eliteessentials.model.Location;
 import com.eliteessentials.model.Warp;
 import com.eliteessentials.permissions.PermissionService;
 import com.eliteessentials.permissions.Permissions;
-import com.eliteessentials.storage.WarpStorage;
+import com.eliteessentials.storage.GlobalStorageProvider;
 
 import java.util.*;
 import java.util.regex.Pattern;
@@ -20,10 +20,10 @@ public class WarpService {
     private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]+$");
     private static final int MAX_NAME_LENGTH = 32;
 
-    private final WarpStorage storage;
+    private final GlobalStorageProvider storage;
     private ConfigManager configManager;
 
-    public WarpService(WarpStorage storage) {
+    public WarpService(GlobalStorageProvider storage) {
         this.storage = storage;
     }
     

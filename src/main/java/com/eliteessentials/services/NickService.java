@@ -1,7 +1,7 @@
 package com.eliteessentials.services;
 
 import com.eliteessentials.model.PlayerFile;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.MessageFormatter;
 
 import java.util.UUID;
@@ -24,9 +24,9 @@ public class NickService {
     /** Maximum allowed length for a nickname (color codes stripped). */
     public static final int MAX_NICK_LENGTH = 32;
 
-    private final PlayerFileStorage storage;
+    private final PlayerStorageProvider storage;
 
-    public NickService(PlayerFileStorage storage) {
+    public NickService(PlayerStorageProvider storage) {
         this.storage = storage;
     }
 

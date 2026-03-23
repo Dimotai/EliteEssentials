@@ -25,7 +25,7 @@ import java.util.logging.Logger;
  * - Auto-save: saves individual player files on changes
  * - Index: maintains name->uuid mapping for commands like /seen
  */
-public class PlayerFileStorage {
+public class PlayerFileStorage implements PlayerStorageProvider {
     
     private static final Logger logger = Logger.getLogger("EliteEssentials");
     private static final Gson gson = new GsonBuilder()

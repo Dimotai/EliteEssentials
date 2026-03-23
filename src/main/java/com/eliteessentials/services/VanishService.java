@@ -3,7 +3,7 @@ package com.eliteessentials.services;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.config.PluginConfig;
 import com.eliteessentials.model.PlayerFile;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.MessageFormatter;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -42,7 +42,7 @@ public class VanishService {
     private static final Logger logger = Logger.getLogger("EliteEssentials");
     
     private final ConfigManager configManager;
-    private PlayerFileStorage playerFileStorage;
+    private PlayerStorageProvider playerFileStorage;
     
     // Track currently vanished players (in-memory for quick lookups)
     private final Set<UUID> vanishedPlayers = ConcurrentHashMap.newKeySet();
@@ -70,7 +70,7 @@ public class VanishService {
     /**
      * Set the player file storage (called after initialization).
      */
-    public void setPlayerFileStorage(PlayerFileStorage storage) {
+    public void setPlayerFileStorage(PlayerStorageProvider storage) {
         this.playerFileStorage = storage;
     }
     

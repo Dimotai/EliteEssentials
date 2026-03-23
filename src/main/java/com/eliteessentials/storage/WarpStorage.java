@@ -16,7 +16,7 @@ import java.util.logging.Logger;
  * Handles persistent storage of server warps.
  * Data is stored in warps.json keyed by warp name.
  */
-public class WarpStorage {
+public class WarpStorage implements GlobalStorageProvider {
 
     private static final Logger logger = Logger.getLogger("EliteEssentials");
     private static final Gson gson = new GsonBuilder()
@@ -107,5 +107,47 @@ public class WarpStorage {
 
     public int getWarpCount() {
         return warps.size();
+    }
+
+    // ==================== Spawn Stubs (no-op for JSON; SpawnStorage handles spawn persistence) ====================
+
+    @Override
+    public void loadSpawns() {
+        // No-op: spawn data is managed by SpawnStorage in JSON mode
+    }
+
+    @Override
+    public void saveSpawns() {
+        // No-op: spawn data is managed by SpawnStorage in JSON mode
+    }
+
+    @Override
+    public Map<String, List<SpawnStorage.SpawnData>> getAllSpawns() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public void setAllSpawns(Map<String, List<SpawnStorage.SpawnData>> spawns) {
+        // No-op: spawn data is managed by SpawnStorage in JSON mode
+    }
+
+    @Override
+    public SpawnStorage.SpawnData getFirstJoinSpawn() {
+        return null;
+    }
+
+    @Override
+    public void saveFirstJoinSpawn(SpawnStorage.SpawnData spawn) {
+        // No-op: first-join spawn is managed by SpawnStorage in JSON mode
+    }
+
+    @Override
+    public void deleteFirstJoinSpawn() {
+        // No-op: first-join spawn is managed by SpawnStorage in JSON mode
+    }
+
+    @Override
+    public void shutdown() {
+        // No-op: no resources to clean up for JSON file storage
     }
 }

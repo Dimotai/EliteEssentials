@@ -3,7 +3,7 @@ package com.eliteessentials.commands.hytale;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.IgnoreService;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
 import com.eliteessentials.util.PlayerSuggestionProvider;
@@ -24,10 +24,10 @@ public class HytaleIgnoreCommand extends AbstractPlayerCommand {
 
     private final IgnoreService ignoreService;
     private final ConfigManager configManager;
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
 
     public HytaleIgnoreCommand(IgnoreService ignoreService, ConfigManager configManager,
-                                PlayerFileStorage playerFileStorage) {
+                                PlayerStorageProvider playerFileStorage) {
         super("ignore", "Ignore a player's messages");
         this.ignoreService = ignoreService;
         this.configManager = configManager;

@@ -3,7 +3,7 @@ package com.eliteessentials.commands.hytale;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.FreezeService;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
 import com.eliteessentials.util.PlayerSuggestionProvider;
@@ -33,10 +33,10 @@ public class HytaleFreezeCommand extends AbstractPlayerCommand {
     private static final Logger logger = Logger.getLogger("EliteEssentials");
     private final FreezeService freezeService;
     private final ConfigManager configManager;
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
 
     public HytaleFreezeCommand(FreezeService freezeService, ConfigManager configManager,
-                                PlayerFileStorage playerFileStorage) {
+                                PlayerStorageProvider playerFileStorage) {
         super("freeze", "Toggle freeze on a player");
         this.freezeService = freezeService;
         this.configManager = configManager;

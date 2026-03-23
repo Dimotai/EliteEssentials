@@ -2,7 +2,7 @@ package com.eliteessentials.services;
 
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.model.PlayerFile;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.MessageFormatter;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 
@@ -21,7 +21,7 @@ public class PlayerService {
 
     private static final Logger logger = Logger.getLogger("EliteEssentials");
     
-    private final PlayerFileStorage storage;
+    private final PlayerStorageProvider storage;
     private final ConfigManager configManager;
     
     // Track session start times for play time calculation
@@ -33,7 +33,7 @@ public class PlayerService {
     // Reference to reward service for session sync during periodic flush
     private PlayTimeRewardService playTimeRewardService;
 
-    public PlayerService(PlayerFileStorage storage, ConfigManager configManager) {
+    public PlayerService(PlayerStorageProvider storage, ConfigManager configManager) {
         this.storage = storage;
         this.configManager = configManager;
     }
@@ -426,7 +426,7 @@ public class PlayerService {
     /**
      * Get the underlying storage (for migration and advanced operations).
      */
-    public PlayerFileStorage getStorage() {
+    public PlayerStorageProvider getStorage() {
         return storage;
     }
     

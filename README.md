@@ -279,6 +279,17 @@ All 300+ player-facing messages are configurable in `messages.json`. Translate y
 - **EssentialsPlus** — Imports warps, kits, spawns, homes, and user profiles (balance, playtime, ipHistory, ignoredPlayers, kit cooldowns) from `mods/fof1092_EssentialsPlus/`
 - **EssentialsCore** — Imports warps, spawn, kits, homes, and kit cooldowns from `mods/com.nhulston_Essentials/`
 
+### SQL Database Storage
+- **Three storage backends** — `"json"` (default), `"h2"` (embedded), or `"mysql"` (external)
+- **H2 embedded** — zero-setup SQL database stored in the plugin data folder
+- **MySQL/MariaDB** — external database for multi-server networks with shared player data
+- **`/eemigrate`** — Migrate existing JSON data to the configured SQL database (Admin)
+- **Automatic schema management** — tables and indexes created on first startup
+- **Connection pooling** — HikariCP with configurable pool size and timeouts
+- **Async writes** — SQL writes run on a background thread, reads use in-memory cache
+- **Configurable table prefix** — default `ee_`, avoids conflicts in shared databases
+- **Graceful shutdown** — pending writes flushed before pool closes
+
 ## Configuration
 
 All settings are fully configurable via `mods/EliteEssentials/config.json`:
@@ -377,6 +388,7 @@ Config file is automatically created on first server start with sensible default
 | `/alias` | Manage aliases | Admin |
 | `/eehelp` | Show available commands | Everyone |
 | `/eliteessentials reload` | Reload config | Admin |
+| `/eemigrate` | Migrate JSON data to SQL | Admin |
 | `/eemigration <source>` | Migrate from other plugins | Admin |
 
 *Self = Everyone when enabled; others = Admin. In simple mode (default), "Admin" requires OP.*
@@ -408,4 +420,3 @@ See [PERMISSIONS.md](PERMISSIONS.md) for the complete permission reference.
 ## Roadmap
 
 - **Chat Filter** - Configurable word filter with customizable actions (warn, mute, kick).
-- **SQL Support** - Ability to use External SQL for Mod storage.

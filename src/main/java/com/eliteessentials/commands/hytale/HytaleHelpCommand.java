@@ -259,7 +259,7 @@ public class HytaleHelpCommand extends CommandBase {
             }
 
             available.add(new CommandInfo("/sendmessage <player|group|all> <message>", "Send a formatted message to player/group/all"));
-            available.add(new CommandInfo("/eemigration <source> [force]", "Migrate data from other essentials plugins"));
+            available.add(new CommandInfo("/eemigration <source> [force]", "Migrate data from other plugins or JSON to SQL"));
             
             available.add(new CommandInfo("/invsee <player>", "View a player's inventory"));
             available.add(new CommandInfo("/sleeppercent <0-100>", "Set sleep percentage"));

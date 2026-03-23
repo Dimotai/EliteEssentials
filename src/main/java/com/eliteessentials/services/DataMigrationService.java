@@ -4,7 +4,7 @@ import com.eliteessentials.model.Home;
 import com.eliteessentials.model.Location;
 import com.eliteessentials.model.PlayerData;
 import com.eliteessentials.model.PlayerFile;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.storage.PlayTimeRewardStorage;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -38,7 +38,7 @@ public class DataMigrationService {
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     
     private final File dataFolder;
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
     
     // Files to migrate
     private static final String[] OLD_FILES = {
@@ -50,7 +50,7 @@ public class DataMigrationService {
         "first_join.json"
     };
     
-    public DataMigrationService(File dataFolder, PlayerFileStorage playerFileStorage) {
+    public DataMigrationService(File dataFolder, PlayerStorageProvider playerFileStorage) {
         this.dataFolder = dataFolder;
         this.playerFileStorage = playerFileStorage;
     }

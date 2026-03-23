@@ -49,12 +49,15 @@ import com.eliteessentials.services.WarmupService;
 import com.eliteessentials.services.WarpService;
 import com.eliteessentials.storage.CustomHelpStorage;
 import com.eliteessentials.storage.DiscordStorage;
+import com.eliteessentials.storage.GlobalStorageProvider;
 import com.eliteessentials.storage.GreetingStorage;
 import com.eliteessentials.storage.MotdStorage;
 import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.storage.PlayTimeRewardStorage;
 import com.eliteessentials.storage.RulesStorage;
 import com.eliteessentials.storage.SpawnStorage;
+import com.eliteessentials.storage.StorageFactory;
 import com.eliteessentials.storage.WarpStorage;
 import com.eliteessentials.systems.DamageTrackingSystem;
 import com.eliteessentials.systems.PlayerDeathSystem;
@@ -82,6 +85,9 @@ public class EliteEssentials extends JavaPlugin {
     private static final Logger logger = Logger.getLogger("EliteEssentials");
     
     private ConfigManager configManager;
+    private StorageFactory storageFactory;
+    private PlayerStorageProvider playerStorageProvider;
+    private GlobalStorageProvider globalStorageProvider;
     private PlayerFileStorage playerFileStorage;
     private WarpStorage warpStorage;
     private SpawnStorage spawnStorage;
@@ -178,23 +184,36 @@ public class EliteEssentials extends JavaPlugin {
         configManager = new ConfigManager(this.dataFolder);
         configManager.loadConfig();
         
-        // Initialize per-player file storage (new system)
-        playerFileStorage = new PlayerFileStorage(this.dataFolder);
+        // Initialize storage factory and create providers based on config
+        storageFactory = new StorageFactory();
+        PluginConfig.StorageConfig storageConfig = configManager.getConfig().storage;
+        playerStorageProvider = storageFactory.createPlayerStorage(storageConfig, this.dataFolder);
+        globalStorageProvider = storageFactory.createGlobalStorage(storageConfig, this.dataFolder);
         
-        // Run migration from old monolithic files to per-player files
-        DataMigrationService migrationService = new DataMigrationService(this.dataFolder, playerFileStorage);
-        if (migrationService.needsMigration()) {
-            getLogger().at(Level.INFO).log("Detected old data files, running migration...");
-            if (!migrationService.migrate()) {
-                getLogger().at(Level.SEVERE).log("Migration failed! Check logs for details.");
+        // Keep concrete references for backward compatibility (reload, migration command, etc.)
+        if (playerStorageProvider instanceof PlayerFileStorage) {
+            playerFileStorage = (PlayerFileStorage) playerStorageProvider;
+        }
+        if (globalStorageProvider instanceof WarpStorage) {
+            warpStorage = (WarpStorage) globalStorageProvider;
+        }
+        
+        // Run migration from old monolithic files to per-player files (JSON mode only)
+        if (playerStorageProvider instanceof PlayerFileStorage) {
+            DataMigrationService migrationService = new DataMigrationService(this.dataFolder, (PlayerFileStorage) playerStorageProvider);
+            if (migrationService.needsMigration()) {
+                getLogger().at(Level.INFO).log("Detected old data files, running migration...");
+                if (!migrationService.migrate()) {
+                    getLogger().at(Level.SEVERE).log("Migration failed! Check logs for details.");
+                }
             }
         }
         
-        // Initialize server-wide storage (not per-player)
-        warpStorage = new WarpStorage(this.dataFolder);
-        warpStorage.load();
+        // Initialize server-wide storage
+        // For SQL mode, load global data from DB; for JSON mode, load from files
+        globalStorageProvider.load();
         
-        spawnStorage = new SpawnStorage(this.dataFolder);
+        spawnStorage = new SpawnStorage(this.dataFolder, globalStorageProvider);
         spawnStorage.load();
         deathPositionCache = new com.eliteessentials.spawn.DeathPositionCache();
         
@@ -209,12 +228,12 @@ public class EliteEssentials extends JavaPlugin {
         
         customHelpStorage = new CustomHelpStorage(this.dataFolder);
         
-        // Initialize services (now using PlayerFileStorage)
+        // Initialize services (using storage provider abstraction)
         cooldownService = new CooldownService();
         warmupService = new WarmupService();
-        homeService = new HomeService(playerFileStorage);
-        backService = new BackService(configManager, playerFileStorage);
-        warpService = new WarpService(warpStorage);
+        homeService = new HomeService(playerStorageProvider);
+        backService = new BackService(configManager, playerStorageProvider);
+        warpService = new WarpService(globalStorageProvider);
         warpService.setConfigManager(configManager);
         damageTrackingService = new DamageTrackingService();
         deathTrackingService = new DeathTrackingService(backService, configManager);
@@ -223,27 +242,27 @@ public class EliteEssentials extends JavaPlugin {
         sleepService = new SleepService(configManager);
         godService = new GodService();
         vanishService = new VanishService(configManager);
-        vanishService.setPlayerFileStorage(playerFileStorage);
+        vanishService.setPlayerFileStorage(playerStorageProvider);
         groupChatService = new GroupChatService(this.dataFolder, configManager);
         messageService = new MessageService();
         kitService = new KitService(this.dataFolder);
-        kitService.setPlayerFileStorage(playerFileStorage);
+        kitService.setPlayerFileStorage(playerStorageProvider);
         spawnProtectionService = new SpawnProtectionService(configManager);
         autoBroadcastService = new AutoBroadcastService(this.dataFolder);
         aliasService = new AliasService(this.dataFolder, getCommandRegistry());
-        playerService = new PlayerService(playerFileStorage, configManager);
+        playerService = new PlayerService(playerStorageProvider, configManager);
         costService = new CostService(configManager);
         flyService = new FlyService(configManager);
-        mailService = new MailService(playerFileStorage, configManager);
+        mailService = new MailService(playerStorageProvider, configManager);
         afkService = new AfkService(configManager);
-        // Nick service - uses PlayerFileStorage, no separate file needed
-        nickService = new NickService(playerFileStorage);
+        // Nick service - uses storage provider, no separate file needed
+        nickService = new NickService(playerStorageProvider);
 
         // Initialize greetings (conditional welcome messages)
         greetingStorage = new GreetingStorage(this.dataFolder);
         greetingService = new GreetingService(greetingStorage, configManager);
 
-        ignoreService = new IgnoreService(playerFileStorage);
+        ignoreService = new IgnoreService(playerStorageProvider);
         muteService = new MuteService(this.dataFolder);
         banService = new BanService(this.dataFolder);
         tempBanService = new TempBanService(this.dataFolder);
@@ -266,7 +285,7 @@ public class EliteEssentials extends JavaPlugin {
         playTimeRewardStorage = new PlayTimeRewardStorage(this.dataFolder);
         playTimeRewardStorage.load();
         playTimeRewardService = new PlayTimeRewardService(playTimeRewardStorage, playerService, configManager);
-        playTimeRewardService.setPlayerFileStorage(playerFileStorage);
+        playTimeRewardService.setPlayerFileStorage(playerStorageProvider);
         
         // Cross-link for session sync during periodic play time flushes
         playerService.setPlayTimeRewardService(playTimeRewardService);
@@ -323,13 +342,13 @@ public class EliteEssentials extends JavaPlugin {
         
         // Register starter kit event for new players
         starterKitEvent = new StarterKitEvent(kitService);
-        starterKitEvent.setPlayerFileStorage(playerFileStorage);
+        starterKitEvent.setPlayerFileStorage(playerStorageProvider);
         starterKitEvent.registerEvents(getEventRegistry());
         getLogger().at(Level.INFO).log("Starter kit system registered.");
         
         // Register join/quit listener for join/quit messages, first join, and MOTD
         joinQuitListener = new JoinQuitListener(configManager, motdStorage, playerService);
-        joinQuitListener.setPlayerFileStorage(playerFileStorage);
+        joinQuitListener.setPlayerFileStorage(playerStorageProvider);
         joinQuitListener.setSpawnStorage(spawnStorage);
         joinQuitListener.setVanishService(vanishService);
         joinQuitListener.setMailService(mailService);
@@ -481,15 +500,20 @@ public class EliteEssentials extends JavaPlugin {
             }
         }
         
-        // Save all player data (homes, back locations, etc. are now in player files)
-        if (playerFileStorage != null) {
-            playerFileStorage.saveAll();
+        // Save all player data (homes, back locations, etc.)
+        if (playerStorageProvider != null) {
+            playerStorageProvider.saveAll();
             getLogger().at(Level.INFO).log("Player data saved.");
         }
         
         if (warpService != null) {
             warpService.save();
             getLogger().at(Level.INFO).log("Warps saved.");
+        }
+        
+        // Shut down SQL connection pool if active (waits up to 30s for queries)
+        if (storageFactory != null) {
+            storageFactory.shutdownPool();
         }
         
         // Cleanup services
@@ -759,7 +783,7 @@ public class EliteEssentials extends JavaPlugin {
         
         // Mail command
         if (config.mail.enabled) {
-            getCommandRegistry().registerCommand(new HytaleMailCommand(mailService, configManager, playerFileStorage));
+            getCommandRegistry().registerCommand(new HytaleMailCommand(mailService, configManager, playerStorageProvider));
             registeredCommands.append("/mail, ");
         }
         
@@ -775,23 +799,23 @@ public class EliteEssentials extends JavaPlugin {
         
         // Ignore commands
         if (config.ignore.enabled) {
-            getCommandRegistry().registerCommand(new HytaleIgnoreCommand(ignoreService, configManager, playerFileStorage));
-            getCommandRegistry().registerCommand(new HytaleUnignoreCommand(ignoreService, configManager, playerFileStorage));
+            getCommandRegistry().registerCommand(new HytaleIgnoreCommand(ignoreService, configManager, playerStorageProvider));
+            getCommandRegistry().registerCommand(new HytaleUnignoreCommand(ignoreService, configManager, playerStorageProvider));
             registeredCommands.append(", /ignore, /unignore");
         }
         
         // Mute commands (admin only)
         if (config.mute.enabled) {
-            getCommandRegistry().registerCommand(new HytaleMuteCommand(muteService, configManager, playerFileStorage));
+            getCommandRegistry().registerCommand(new HytaleMuteCommand(muteService, configManager, playerStorageProvider));
             getCommandRegistry().registerCommand(new HytaleUnmuteCommand(muteService, configManager));
             registeredCommands.append(", /mute, /unmute");
         }
         
         // Ban commands (admin only)
         if (config.ban.enabled) {
-            getCommandRegistry().registerCommand(new HytaleBanCommand(banService, configManager, playerFileStorage));
+            getCommandRegistry().registerCommand(new HytaleBanCommand(banService, configManager, playerStorageProvider));
             getCommandRegistry().registerCommand(new HytaleUnbanCommand(banService, configManager));
-            getCommandRegistry().registerCommand(new HytaleTempBanCommand(tempBanService, configManager, playerFileStorage));
+            getCommandRegistry().registerCommand(new HytaleTempBanCommand(tempBanService, configManager, playerStorageProvider));
             getCommandRegistry().registerCommand(new HytaleIpBanCommand(ipBanService, configManager));
             getCommandRegistry().registerCommand(new HytaleUnIpBanCommand(ipBanService, configManager));
             registeredCommands.append(", /ban, /unban, /tempban, /ipban, /unipban");
@@ -799,15 +823,15 @@ public class EliteEssentials extends JavaPlugin {
         
         // Freeze command (admin only)
         if (config.freeze.enabled) {
-            getCommandRegistry().registerCommand(new HytaleFreezeCommand(freezeService, configManager, playerFileStorage));
+            getCommandRegistry().registerCommand(new HytaleFreezeCommand(freezeService, configManager, playerStorageProvider));
             registeredCommands.append(", /freeze");
         }
         
         // Warn commands (admin only)
         if (config.warn.enabled) {
-            getCommandRegistry().registerCommand(new HytaleWarnCommand(warnService, banService, tempBanService, configManager, playerFileStorage));
-            getCommandRegistry().registerCommand(new HytaleWarningsCommand(warnService, configManager, playerFileStorage));
-            getCommandRegistry().registerCommand(new HytaleClearWarningsCommand(warnService, configManager, playerFileStorage));
+            getCommandRegistry().registerCommand(new HytaleWarnCommand(warnService, banService, tempBanService, configManager, playerStorageProvider));
+            getCommandRegistry().registerCommand(new HytaleWarningsCommand(warnService, configManager, playerStorageProvider));
+            getCommandRegistry().registerCommand(new HytaleClearWarningsCommand(warnService, configManager, playerStorageProvider));
             registeredCommands.append(", /warn, /warnings, /clearwarnings");
         }
         
@@ -927,6 +951,15 @@ public class EliteEssentials extends JavaPlugin {
         return mailService;
     }
     
+    public PlayerStorageProvider getPlayerStorageProvider() {
+        return playerStorageProvider;
+    }
+    
+    /**
+     * @deprecated Use {@link #getPlayerStorageProvider()} instead.
+     * Returns the concrete PlayerFileStorage only when in JSON mode, null otherwise.
+     */
+    @Deprecated
     public PlayerFileStorage getPlayerFileStorage() {
         return playerFileStorage;
     }
@@ -995,6 +1028,15 @@ public class EliteEssentials extends JavaPlugin {
         return dataFolder;
     }
     
+    public GlobalStorageProvider getGlobalStorageProvider() {
+        return globalStorageProvider;
+    }
+    
+    /**
+     * @deprecated Use {@link #getGlobalStorageProvider()} instead.
+     * Returns the concrete WarpStorage only when in JSON mode, null otherwise.
+     */
+    @Deprecated
     public WarpStorage getWarpStorage() {
         return warpStorage;
     }
@@ -1016,11 +1058,11 @@ public class EliteEssentials extends JavaPlugin {
             joinQuitListener.updatePacketFiltersForAll();
         }
         
-        // Reload storage files (allows external edits to be picked up)
+        // Reload storage (allows external edits to be picked up)
         motdStorage.load();
         rulesStorage.load();
         discordStorage.load();
-        warpStorage.load();
+        globalStorageProvider.load();
         spawnStorage.load();
         
         // Reload custom help entries (allows admins to edit custom_help.json)
@@ -1064,9 +1106,9 @@ public class EliteEssentials extends JavaPlugin {
             groupChatService.reload();
         }
         
-        // Reload player file storage index
-        if (playerFileStorage != null) {
-            playerFileStorage.reload();
+        // Reload player storage index
+        if (playerStorageProvider != null) {
+            playerStorageProvider.reload();
         }
         
         // Reload playtime rewards

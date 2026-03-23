@@ -3,7 +3,7 @@ package com.eliteessentials.commands.hytale;
 import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.TempBanService;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
 import com.eliteessentials.util.PlayerSuggestionProvider;
@@ -23,10 +23,10 @@ public class HytaleTempBanCommand extends AbstractPlayerCommand {
 
     private final TempBanService tempBanService;
     private final ConfigManager configManager;
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
 
     public HytaleTempBanCommand(TempBanService tempBanService, ConfigManager configManager,
-                                 PlayerFileStorage playerFileStorage) {
+                                 PlayerStorageProvider playerFileStorage) {
         super("tempban", "Temporarily ban a player");
         this.tempBanService = tempBanService;
         this.configManager = configManager;

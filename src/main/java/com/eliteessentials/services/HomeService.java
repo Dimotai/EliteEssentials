@@ -4,7 +4,7 @@ import com.eliteessentials.model.Home;
 import com.eliteessentials.model.Location;
 import com.eliteessentials.model.PlayerFile;
 import com.eliteessentials.permissions.PermissionService;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 
 import java.util.Map;
 import java.util.Optional;
@@ -22,9 +22,9 @@ public class HomeService {
 
     private static final Logger logger = Logger.getLogger("EliteEssentials");
 
-    private final PlayerFileStorage storage;
+    private final PlayerStorageProvider storage;
 
-    public HomeService(PlayerFileStorage storage) {
+    public HomeService(PlayerStorageProvider storage) {
         this.storage = storage;
     }
 

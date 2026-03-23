@@ -4,7 +4,7 @@ import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.model.MailMessage;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.MailService;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
 import com.hypixel.hytale.component.Ref;
@@ -42,11 +42,11 @@ public class HytaleMailCommand extends AbstractPlayerCommand {
 
     private final MailService mailService;
     private final ConfigManager configManager;
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("MM/dd HH:mm");
 
     public HytaleMailCommand(MailService mailService, ConfigManager configManager, 
-                             PlayerFileStorage playerFileStorage) {
+                             PlayerStorageProvider playerFileStorage) {
         super("mail", "Send and receive mail from other players");
         this.mailService = mailService;
         this.configManager = configManager;
