@@ -1,7 +1,7 @@
 package com.eliteessentials.services;
 
 import com.eliteessentials.model.*;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -24,14 +24,14 @@ public class HomesPlusMigrationService {
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     
     private final File modsFolder;
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
     
     // Migration stats
     private int playersImported = 0;
     private int homesImported = 0;
     private final List<String> errors = new ArrayList<>();
     
-    public HomesPlusMigrationService(File dataFolder, PlayerFileStorage playerFileStorage) {
+    public HomesPlusMigrationService(File dataFolder, PlayerStorageProvider playerFileStorage) {
         this.modsFolder = dataFolder.getParentFile();
         this.playerFileStorage = playerFileStorage;
     }

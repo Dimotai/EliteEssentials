@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.2 - 2026-03-28
+
+### Added
+* **Broadcast greeting rules** — greeting rules in `greetings.json` now support a `"broadcast": true` option. When enabled, the greeting message is sent to all online players instead of only the triggering player. Useful for VIP/staff join announcements (e.g. `&6[VIP] &e{player} has joined the server!`). Defaults to `false` so existing configs are unaffected. Broadcast rules are automatically skipped for vanished players. A new default example rule `vip-join-announce` is included (disabled by default). Also added `{displayname}` placeholder support in greetings for nick compatibility
+
+### Fixed
+* **Migration NPE for all player data** — `/eemigration` from EssentialsCore, EssentialsPlus, Hyssentials, and HomesPlus would fail with `"this.playerFileStorage" is null` for every player file. All four migration services were typed to the concrete `PlayerFileStorage` class, which is only set in JSON storage mode. Servers using H2 or MySQL storage would always get null passed in. Changed all migration services to accept the `PlayerStorageProvider` interface so migrations work regardless of storage backend
+* **Sleep percentage world crash** — `SleepService.triggerSlumber()` was calling `timeResource.setGameTime()` directly and manually constructing `PlayerSomnolence` with `MorningWakeUp`, bypassing the engine's `UpdateWorldSlumberSystem`. This created conflicting state mutations that could crash the world. Fixed by delegating to the engine properly: sets `WorldSomnolence` state to `WorldSlumber` and lets the engine handle time progression and player state transitions. Night skip now has a brief visual transition instead of being instant, matching intended engine behavior
+* **Admin UI "player not found" for offline players** — all `/eeadmin` actions (ban, temp ban, IP ban, mute, warn, clear warnings, lookup warnings) were using `PlayerSuggestionProvider.findPlayer()` which only searches online players. Added offline fallback via `PlayerStorageProvider.getUuidByName()` so these actions now work for any player who has joined the server before. IP ban uses the player's last known IP from their stored IP history when offline
+* **`/ipban` not working for offline players** — the `/ipban` command had the same online-only limitation. Now falls back to the player's stored IP history when the target is offline
+
 ## 2.0.1 - 2026-03-28
 
 ### Changed

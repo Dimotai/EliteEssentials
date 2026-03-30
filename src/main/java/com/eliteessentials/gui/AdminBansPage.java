@@ -7,6 +7,7 @@ import com.eliteessentials.permissions.PermissionService;
 import com.eliteessentials.services.BanService;
 import com.eliteessentials.services.IpBanService;
 import com.eliteessentials.services.TempBanService;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.codec.Codec;
@@ -153,21 +154,39 @@ public class AdminBansPage extends InteractiveCustomUIPage<AdminBansPage.BanEven
         }
 
         PlayerRef target = PlayerSuggestionProvider.findPlayer(data.getBanPlayer());
+        UUID targetId;
+        String resolvedName;
+
         if (target != null && target.isValid()) {
-            boolean success = plugin.getBanService().ban(target.getUuid(), target.getUsername(),
-                adminName, data.getBanReason() != null ? data.getBanReason() : "Banned via Admin UI");
-            if (success) {
+            targetId = target.getUuid();
+            resolvedName = target.getUsername();
+        } else {
+            // Offline lookup
+            PlayerStorageProvider storage = plugin.getPlayerStorageProvider();
+            java.util.Optional<UUID> offlineId = storage.getUuidByName(data.getBanPlayer());
+            if (!offlineId.isPresent()) {
+                setStatus(configManager.getMessage("playerNotFound", "player", data.getBanPlayer()));
+                refreshBanList();
+                return;
+            }
+            targetId = offlineId.get();
+            resolvedName = data.getBanPlayer();
+        }
+
+        boolean success = plugin.getBanService().ban(targetId, resolvedName,
+            adminName, data.getBanReason() != null ? data.getBanReason() : "Banned via Admin UI");
+        if (success) {
+            // Kick if online
+            if (target != null && target.isValid()) {
                 try {
                     target.getPacketHandler().disconnect(
                         Message.raw(com.eliteessentials.util.MessageFormatter.stripColorCodes(
                             configManager.getMessage("adminui.bans.banKickMsg"))));
                 } catch (Exception ignored) {}
-                setStatus(configManager.getMessage("adminui.bans.banned", "player", target.getUsername()));
-            } else {
-                setStatus(configManager.getMessage("adminui.bans.alreadyBanned", "player", target.getUsername()));
             }
+            setStatus(configManager.getMessage("adminui.bans.banned", "player", resolvedName));
         } else {
-            setStatus(configManager.getMessage("playerNotFound", "player", data.getBanPlayer()));
+            setStatus(configManager.getMessage("adminui.bans.alreadyBanned", "player", resolvedName));
         }
         refreshBanList();
     }
@@ -185,22 +204,40 @@ public class AdminBansPage extends InteractiveCustomUIPage<AdminBansPage.BanEven
         }
 
         PlayerRef target = PlayerSuggestionProvider.findPlayer(data.getBanPlayer());
+        UUID targetId;
+        String resolvedName;
+
         if (target != null && target.isValid()) {
-            boolean success = plugin.getTempBanService().tempBan(target.getUuid(), target.getUsername(),
-                adminName, data.getBanReason() != null ? data.getBanReason() : "Temp banned via Admin UI", durationMs);
-            if (success) {
+            targetId = target.getUuid();
+            resolvedName = target.getUsername();
+        } else {
+            // Offline lookup
+            PlayerStorageProvider storage = plugin.getPlayerStorageProvider();
+            java.util.Optional<UUID> offlineId = storage.getUuidByName(data.getBanPlayer());
+            if (!offlineId.isPresent()) {
+                setStatus(configManager.getMessage("playerNotFound", "player", data.getBanPlayer()));
+                refreshBanList();
+                return;
+            }
+            targetId = offlineId.get();
+            resolvedName = data.getBanPlayer();
+        }
+
+        boolean success = plugin.getTempBanService().tempBan(targetId, resolvedName,
+            adminName, data.getBanReason() != null ? data.getBanReason() : "Temp banned via Admin UI", durationMs);
+        if (success) {
+            // Kick if online
+            if (target != null && target.isValid()) {
                 try {
                     target.getPacketHandler().disconnect(
                         Message.raw(com.eliteessentials.util.MessageFormatter.stripColorCodes(
                             configManager.getMessage("adminui.bans.banKickMsg"))));
                 } catch (Exception ignored) {}
-                setStatus(configManager.getMessage("adminui.bans.tempBanned",
-                    "player", target.getUsername(), "duration", data.getBanDuration()));
-            } else {
-                setStatus(configManager.getMessage("adminui.bans.alreadyBanned", "player", target.getUsername()));
             }
+            setStatus(configManager.getMessage("adminui.bans.tempBanned",
+                "player", resolvedName, "duration", data.getBanDuration()));
         } else {
-            setStatus(configManager.getMessage("playerNotFound", "player", data.getBanPlayer()));
+            setStatus(configManager.getMessage("adminui.bans.alreadyBanned", "player", resolvedName));
         }
         refreshBanList();
     }
@@ -212,26 +249,58 @@ public class AdminBansPage extends InteractiveCustomUIPage<AdminBansPage.BanEven
         }
 
         PlayerRef target = PlayerSuggestionProvider.findPlayer(data.getBanPlayer());
+        String ip = null;
+        UUID targetId;
+        String resolvedName;
+
         if (target != null && target.isValid()) {
-            try {
-                String ip = IpBanService.getIpFromPacketHandler(target.getPacketHandler());
-                if (ip != null) {
-                    plugin.getIpBanService().banIp(ip, target.getUuid(), target.getUsername(),
-                        adminName, data.getBanReason() != null ? data.getBanReason() : "IP banned via Admin UI");
-                    try {
-                        target.getPacketHandler().disconnect(
-                            Message.raw(com.eliteessentials.util.MessageFormatter.stripColorCodes(
-                                configManager.getMessage("adminui.bans.banKickMsg"))));
-                    } catch (Exception ignored) {}
-                    setStatus(configManager.getMessage("adminui.bans.ipBanned", "player", target.getUsername()));
-                } else {
-                    setStatus(configManager.getMessage("adminui.bans.ipFailed"));
-                }
-            } catch (Exception e) {
-                setStatus(configManager.getMessage("adminui.bans.ipFailed"));
-            }
+            targetId = target.getUuid();
+            resolvedName = target.getUsername();
+            ip = IpBanService.getIpFromPacketHandler(target.getPacketHandler());
         } else {
-            setStatus(configManager.getMessage("playerNotFound", "player", data.getBanPlayer()));
+            // Offline lookup — resolve UUID then get last known IP from player file
+            PlayerStorageProvider storage = plugin.getPlayerStorageProvider();
+            java.util.Optional<UUID> offlineId = storage.getUuidByName(data.getBanPlayer());
+            if (!offlineId.isPresent()) {
+                setStatus(configManager.getMessage("playerNotFound", "player", data.getBanPlayer()));
+                refreshBanList();
+                return;
+            }
+            targetId = offlineId.get();
+            resolvedName = data.getBanPlayer();
+
+            com.eliteessentials.model.PlayerFile playerFile = storage.getPlayer(targetId);
+            if (playerFile != null) {
+                java.util.List<com.eliteessentials.model.PlayerFile.IpHistoryEntry> history = playerFile.getIpHistory();
+                if (history != null && !history.isEmpty()) {
+                    ip = history.stream()
+                        .max((a, b) -> Long.compare(a.lastUsed, b.lastUsed))
+                        .map(e -> e.ip)
+                        .orElse(null);
+                }
+            }
+        }
+
+        if (ip == null) {
+            setStatus(configManager.getMessage("adminui.bans.ipFailed"));
+            refreshBanList();
+            return;
+        }
+
+        try {
+            plugin.getIpBanService().banIp(ip, targetId, resolvedName,
+                adminName, data.getBanReason() != null ? data.getBanReason() : "IP banned via Admin UI");
+            // Kick if online
+            if (target != null && target.isValid()) {
+                try {
+                    target.getPacketHandler().disconnect(
+                        Message.raw(com.eliteessentials.util.MessageFormatter.stripColorCodes(
+                            configManager.getMessage("adminui.bans.banKickMsg"))));
+                } catch (Exception ignored) {}
+            }
+            setStatus(configManager.getMessage("adminui.bans.ipBanned", "player", resolvedName));
+        } catch (Exception e) {
+            setStatus(configManager.getMessage("adminui.bans.ipFailed"));
         }
         refreshBanList();
     }

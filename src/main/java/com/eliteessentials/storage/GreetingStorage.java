@@ -78,7 +78,7 @@ public class GreetingStorage {
     private void createDefaults() {
         rules = new ArrayList<>();
 
-        // Example: VIP welcome (disabled by default)
+        // Example: VIP welcome — private message to the VIP (disabled by default)
         GreetingRule vipRule = new GreetingRule();
         vipRule.id = "vip-welcome";
         vipRule.enabled = false;
@@ -86,10 +86,23 @@ public class GreetingStorage {
         vipRule.conditions = new GreetingConditions();
         vipRule.conditions.groups = List.of("vip", "mvp");
         vipRule.messages = List.of(
-                "&6&l★ VIP Welcome! ★",
+                "&6&lVIP Welcome!",
                 "&eWelcome back, {player}! Enjoy your VIP perks."
         );
         rules.add(vipRule);
+
+        // Example: VIP join announcement — broadcast to all players (disabled by default)
+        GreetingRule vipAnnounce = new GreetingRule();
+        vipAnnounce.id = "vip-join-announce";
+        vipAnnounce.enabled = false;
+        vipAnnounce.trigger = "server_join";
+        vipAnnounce.broadcast = true;
+        vipAnnounce.conditions = new GreetingConditions();
+        vipAnnounce.conditions.groups = List.of("vip", "mvp");
+        vipAnnounce.messages = List.of(
+                "&6[VIP] &e{player} has joined the server!"
+        );
+        rules.add(vipAnnounce);
 
         // Example: New player (disabled by default)
         GreetingRule newPlayer = new GreetingRule();
@@ -159,6 +172,12 @@ public class GreetingStorage {
 
         /** If true, only show once per session even if triggered again */
         public boolean showOnce = false;
+
+        /**
+         * If true, messages are broadcast to all online players instead of
+         * only the triggering player. Useful for VIP join announcements.
+         */
+        public boolean broadcast = false;
     }
 
     /**

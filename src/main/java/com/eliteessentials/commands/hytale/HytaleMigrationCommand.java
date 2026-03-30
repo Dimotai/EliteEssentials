@@ -114,7 +114,7 @@ public class HytaleMigrationCommand extends CommandBase {
             plugin.getWarpStorage(),
             plugin.getSpawnStorage(),
             plugin.getKitService(),
-            plugin.getPlayerFileStorage()
+            plugin.getPlayerStorageProvider()
         );
         
         // Check if source data exists
@@ -175,7 +175,7 @@ public class HytaleMigrationCommand extends CommandBase {
         HyssentialsMigrationService migrationService = new HyssentialsMigrationService(
             plugin.getDataFolder(),
             plugin.getWarpStorage(),
-            plugin.getPlayerFileStorage()
+            plugin.getPlayerStorageProvider()
         );
         
         // Check if source data exists
@@ -223,7 +223,7 @@ public class HytaleMigrationCommand extends CommandBase {
             plugin.getWarpStorage(),
             plugin.getSpawnStorage(),
             plugin.getKitService(),
-            plugin.getPlayerFileStorage()
+            plugin.getPlayerStorageProvider()
         );
         
         // Check if source data exists
@@ -274,7 +274,7 @@ public class HytaleMigrationCommand extends CommandBase {
         
         HomesPlusMigrationService migrationService = new HomesPlusMigrationService(
             plugin.getDataFolder(),
-            plugin.getPlayerFileStorage()
+            plugin.getPlayerStorageProvider()
         );
         
         // Check if source data exists

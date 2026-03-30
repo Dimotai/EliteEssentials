@@ -2,7 +2,7 @@ package com.eliteessentials.services;
 
 import com.eliteessentials.model.*;
 import com.eliteessentials.storage.GlobalStorageProvider;
-import com.eliteessentials.storage.PlayerFileStorage;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -27,7 +27,7 @@ public class HyssentialsMigrationService {
     
     private final File modsFolder;
     private final GlobalStorageProvider warpStorage;
-    private final PlayerFileStorage playerFileStorage;
+    private final PlayerStorageProvider playerFileStorage;
     
     // Migration stats
     private int warpsImported = 0;
@@ -36,7 +36,7 @@ public class HyssentialsMigrationService {
     private final List<String> errors = new ArrayList<>();
     
     public HyssentialsMigrationService(File dataFolder, GlobalStorageProvider warpStorage, 
-                                       PlayerFileStorage playerFileStorage) {
+                                       PlayerStorageProvider playerFileStorage) {
         // Go up from EliteEssentials folder to mods folder
         this.modsFolder = dataFolder.getParentFile();
         this.warpStorage = warpStorage;

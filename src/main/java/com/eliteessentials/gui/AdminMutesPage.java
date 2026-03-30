@@ -5,6 +5,7 @@ import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.permissions.PermissionService;
 import com.eliteessentials.services.MuteService;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.codec.Codec;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
@@ -121,17 +122,32 @@ public class AdminMutesPage extends InteractiveCustomUIPage<AdminMutesPage.MuteE
         if (muteService == null) return;
 
         PlayerRef target = PlayerSuggestionProvider.findPlayer(data.getMutePlayer());
+        UUID targetId;
+        String resolvedName;
+
         if (target != null && target.isValid()) {
-            String reason = data.getMuteReason() != null ? data.getMuteReason() : "Muted via Admin UI";
-            boolean success = muteService.mute(target.getUuid(), target.getUsername(),
-                playerRef.getUsername(), reason);
-            if (success) {
-                setStatus(configManager.getMessage("adminui.mutes.muted", "player", target.getUsername()));
-            } else {
-                setStatus(configManager.getMessage("adminui.mutes.alreadyMuted", "player", target.getUsername()));
-            }
+            targetId = target.getUuid();
+            resolvedName = target.getUsername();
         } else {
-            setStatus(configManager.getMessage("playerNotFound", "player", data.getMutePlayer()));
+            // Offline lookup
+            PlayerStorageProvider storage = EliteEssentials.getInstance().getPlayerStorageProvider();
+            java.util.Optional<UUID> offlineId = storage.getUuidByName(data.getMutePlayer());
+            if (!offlineId.isPresent()) {
+                setStatus(configManager.getMessage("playerNotFound", "player", data.getMutePlayer()));
+                refreshMuteList();
+                return;
+            }
+            targetId = offlineId.get();
+            resolvedName = data.getMutePlayer();
+        }
+
+        String reason = data.getMuteReason() != null ? data.getMuteReason() : "Muted via Admin UI";
+        boolean success = muteService.mute(targetId, resolvedName,
+            playerRef.getUsername(), reason);
+        if (success) {
+            setStatus(configManager.getMessage("adminui.mutes.muted", "player", resolvedName));
+        } else {
+            setStatus(configManager.getMessage("adminui.mutes.alreadyMuted", "player", resolvedName));
         }
         refreshMuteList();
     }

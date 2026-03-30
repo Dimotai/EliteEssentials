@@ -150,6 +150,13 @@ All 300+ player-facing messages are configurable in `messages.json`. Translate y
   - First join messages broadcast to everyone
   - Fully customizable in config
   - Option to suppress default Hytale join messages
+- **Greetings** - Rule-based conditional messages on join, world enter, or respawn
+  - Send different messages to different players based on group, permissions, world, or first-join status
+  - **Broadcast mode** - Optionally announce to all players (e.g., VIP join announcements)
+  - Placeholders: `{player}`, `{displayname}`, `{world}`, `{group}`, `{playercount}`
+  - Configurable delay, show-once per session, and stop-after-match
+  - Vanish-safe: broadcast rules are skipped for vanished players
+  - Rules stored in `greetings.json`, reloads with `/ee reload`
 
 ### Nickname System
 - **`/nick <nickname>`** - Set your own display nickname (persists across restarts)

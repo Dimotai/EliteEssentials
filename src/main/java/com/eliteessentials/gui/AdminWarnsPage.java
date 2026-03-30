@@ -5,6 +5,7 @@ import com.eliteessentials.config.ConfigManager;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.permissions.PermissionService;
 import com.eliteessentials.services.WarnService;
+import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.util.PlayerSuggestionProvider;
 import com.hypixel.hytale.codec.Codec;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
@@ -107,19 +108,33 @@ public class AdminWarnsPage extends InteractiveCustomUIPage<AdminWarnsPage.WarnE
         if (warnService == null) return;
 
         PlayerRef target = PlayerSuggestionProvider.findPlayer(data.getWarnPlayer());
-        if (target != null && target.isValid()) {
-            String reason = data.getWarnReason() != null ? data.getWarnReason() : "Warned via Admin UI";
-            int count = warnService.warn(target.getUuid(), target.getUsername(),
-                playerRef.getUsername(), reason);
-            setStatus(configManager.getMessage("adminui.warns.warned",
-                "player", target.getUsername(), "count", String.valueOf(count)));
+        UUID targetId;
+        String resolvedName;
 
-            // Auto-show warnings for the warned player
-            lookupTarget = data.getWarnPlayer();
-            refreshWarnList(target.getUuid());
+        if (target != null && target.isValid()) {
+            targetId = target.getUuid();
+            resolvedName = target.getUsername();
         } else {
-            setStatus(configManager.getMessage("playerNotFound", "player", data.getWarnPlayer()));
+            // Offline lookup
+            PlayerStorageProvider storage = EliteEssentials.getInstance().getPlayerStorageProvider();
+            java.util.Optional<UUID> offlineId = storage.getUuidByName(data.getWarnPlayer());
+            if (!offlineId.isPresent()) {
+                setStatus(configManager.getMessage("playerNotFound", "player", data.getWarnPlayer()));
+                return;
+            }
+            targetId = offlineId.get();
+            resolvedName = data.getWarnPlayer();
         }
+
+        String reason = data.getWarnReason() != null ? data.getWarnReason() : "Warned via Admin UI";
+        int count = warnService.warn(targetId, resolvedName,
+            playerRef.getUsername(), reason);
+        setStatus(configManager.getMessage("adminui.warns.warned",
+            "player", resolvedName, "count", String.valueOf(count)));
+
+        // Auto-show warnings for the warned player
+        lookupTarget = data.getWarnPlayer();
+        refreshWarnList(targetId);
     }
 
     private void handleClear(WarnEventData data) {
@@ -139,14 +154,26 @@ public class AdminWarnsPage extends InteractiveCustomUIPage<AdminWarnsPage.WarnE
         if (warnService == null) return;
 
         PlayerRef target = PlayerSuggestionProvider.findPlayer(name);
+        UUID targetId;
+
         if (target != null) {
-            int cleared = warnService.clearWarnings(target.getUuid());
-            setStatus(configManager.getMessage("adminui.warns.cleared",
-                "player", target.getUsername(), "count", String.valueOf(cleared)));
-            refreshWarnList(target.getUuid());
+            targetId = target.getUuid();
+            name = target.getUsername();
         } else {
-            setStatus(configManager.getMessage("playerNotFound", "player", name));
+            // Offline lookup
+            PlayerStorageProvider storage = EliteEssentials.getInstance().getPlayerStorageProvider();
+            java.util.Optional<UUID> offlineId = storage.getUuidByName(name);
+            if (!offlineId.isPresent()) {
+                setStatus(configManager.getMessage("playerNotFound", "player", name));
+                return;
+            }
+            targetId = offlineId.get();
         }
+
+        int cleared = warnService.clearWarnings(targetId);
+        setStatus(configManager.getMessage("adminui.warns.cleared",
+            "player", name, "count", String.valueOf(cleared)));
+        refreshWarnList(targetId);
     }
 
     private void handleLookup(WarnEventData data) {
@@ -161,7 +188,14 @@ public class AdminWarnsPage extends InteractiveCustomUIPage<AdminWarnsPage.WarnE
         if (target != null) {
             refreshWarnList(target.getUuid());
         } else {
-            setStatus(configManager.getMessage("playerNotFound", "player", name));
+            // Offline lookup
+            PlayerStorageProvider storage = EliteEssentials.getInstance().getPlayerStorageProvider();
+            java.util.Optional<UUID> offlineId = storage.getUuidByName(name);
+            if (offlineId.isPresent()) {
+                refreshWarnList(offlineId.get());
+            } else {
+                setStatus(configManager.getMessage("playerNotFound", "player", name));
+            }
         }
     }
 

@@ -5,6 +5,7 @@ import com.eliteessentials.config.PluginConfig;
 import com.eliteessentials.integration.LuckPermsIntegration;
 import com.eliteessentials.integration.PAPIIntegration;
 import com.eliteessentials.permissions.PermissionService;
+import com.eliteessentials.services.NickService;
 import com.eliteessentials.storage.GreetingStorage;
 import com.eliteessentials.storage.GreetingStorage.GreetingConditions;
 import com.eliteessentials.storage.GreetingStorage.GreetingRule;
@@ -82,7 +83,19 @@ public class GreetingService {
                 continue;
             }
 
-            // Rule matches — mark showOnce
+            // Rule matches — but skip broadcast rules for vanished players
+            if (rule.broadcast) {
+                var vanishService = com.eliteessentials.EliteEssentials.getInstance().getVanishService();
+                if (vanishService != null && vanishService.isVanished(playerId)) {
+                    if (configManager.isDebugEnabled()) {
+                        logger.info("[Greetings] Skipping broadcast rule '" + rule.id +
+                                "' for vanished player " + playerRef.getUsername());
+                    }
+                    continue;
+                }
+            }
+
+            // Mark showOnce
             if (rule.showOnce) {
                 shownRules.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet())
                         .add(rule.id);
@@ -207,6 +220,13 @@ public class GreetingService {
 
         PluginConfig config = configManager.getConfig();
         String playerName = playerRef.getUsername();
+
+        // Use display name (nick) if available
+        NickService nickService = com.eliteessentials.EliteEssentials.getInstance().getNickService();
+        String displayName = (nickService != null)
+                ? nickService.getDisplayName(playerRef.getUuid(), playerName)
+                : playerName;
+
         String serverName = config.motd.serverName;
         String group = getPrimaryGroup(playerRef.getUuid());
         int playerCount = getVisiblePlayerCount();
@@ -216,6 +236,7 @@ public class GreetingService {
 
             String processed = line
                     .replace("{player}", playerName)
+                    .replace("{displayname}", displayName)
                     .replace("{server}", serverName)
                     .replace("{world}", worldName != null ? worldName : "")
                     .replace("{playercount}", String.valueOf(playerCount))
@@ -226,11 +247,42 @@ public class GreetingService {
                 processed = PAPIIntegration.setPlaceholders(playerRef, processed);
             }
 
-            playerRef.sendMessage(MessageFormatter.format(processed));
+            if (rule.broadcast) {
+                broadcastGreeting(processed, playerRef);
+            } else {
+                playerRef.sendMessage(MessageFormatter.format(processed));
+            }
         }
 
         if (configManager.isDebugEnabled()) {
-            logger.info("[Greetings] Fired rule '" + rule.id + "' for " + playerRef.getUsername());
+            logger.info("[Greetings] Fired rule '" + rule.id + "' (" +
+                    (rule.broadcast ? "broadcast" : "private") + ") for " + playerRef.getUsername());
+        }
+    }
+
+    /**
+     * Broadcast a greeting message to all online players.
+     * Respects vanish — vanished players still receive the message,
+     * but the triggering player's identity is not hidden (they chose to
+     * have a broadcast greeting, so visibility is intentional).
+     */
+    private void broadcastGreeting(String formattedLine, PlayerRef triggeringPlayer) {
+        try {
+            var universe = com.hypixel.hytale.server.core.universe.Universe.get();
+            if (universe == null) return;
+
+            var message = MessageFormatter.format(formattedLine);
+            for (PlayerRef player : universe.getPlayers()) {
+                try {
+                    if (player.isValid()) {
+                        player.sendMessage(message);
+                    }
+                } catch (Exception e) {
+                    // Skip individual send failures
+                }
+            }
+        } catch (Exception e) {
+            logger.warning("[Greetings] Failed to broadcast greeting: " + e.getMessage());
         }
     }
 
