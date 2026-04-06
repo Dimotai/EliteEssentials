@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.4 - 2026-04-05
+
+### Fixed
+* **Vanish ghost entity on disconnect** - when a vanished player disconnected, their entity could remain as a "ghost" in the EntityStore's UUID registry because the hidden-player state was not fully cleaned up before the engine's disconnect pipeline ran. On reconnect, the UUID collision caused an "Invalid entity reference" crash loop that only a server restart could fix. The disconnect handler now unconditionally un-hides the player from all other players' HiddenPlayersManagers and strips the Invulnerable component (if not in god mode) before the engine tears down the entity, ensuring a clean removal from the store. Thanks to [Dimotai](https://github.com/Dimotai) for identifying and fixing this (PR #59)
+* **Vanish rapid toggle corrupting live entity** - quickly toggling vanish (e.g. `/v /v` in rapid succession) could overlap on ForkJoinPool threads, causing concurrent putComponent/removeComponent calls on the entity's Invulnerable component. The ECS archetype migration race would corrupt the entity, nulling the Player component and crashing the server. Added a per-player toggle guard that rejects concurrent vanish toggles, and moved all ECS component mutations to the world thread via world.execute() instead of applying them synchronously from the command handler thread. Thanks to [Dimotai](https://github.com/Dimotai) for identifying and fixing this (PR #59)
+
 ## 2.0.3 - 2026-03-29
 
 ### Added
