@@ -83,6 +83,7 @@ public class PluginConfig {
     public FreezeConfig freeze = new FreezeConfig();
     public WarnConfig warn = new WarnConfig();
     public NickConfig nick = new NickConfig();
+    public SpyConfig spy = new SpyConfig();
     public FirstJoinSpawnConfig firstJoinSpawn = new FirstJoinSpawnConfig();
     public GreetingsConfig greetings = new GreetingsConfig();
     
@@ -334,6 +335,22 @@ public class PluginConfig {
         messages.put("chatsEntry", "{color}{prefix} &f{name} &7- {displayName}");
         messages.put("chatsFooter", "&7Use &a/gc [chat] <message> &7or &a/g [chat] <message> &7to chat.");
         
+        // ==================== SPY ====================
+        messages.put("spyStatusHeader", "&b&l=== &fSpy Status &b&l===");
+        messages.put("spyStatusActive", "&7Active modes: &a{modes}");
+        messages.put("spyUsageGchat", "&e/spy gchat &7- Toggle group chat spy");
+        messages.put("spyUsageDm", "&e/spy dm &7- Toggle private message spy");
+        messages.put("spyUsageCommand", "&e/spy command &7- Toggle command spy");
+        messages.put("spyGchatEnabled", "&aSpy &2gchat &aenabled. You will see all group chat messages.");
+        messages.put("spyGchatDisabled", "&aSpy &cgchat &adisabled.");
+        messages.put("spyGchatDisabledConfig", "&cGroup chat spy is disabled in config.");
+        messages.put("spyDmEnabled", "&aSpy &2dm &aenabled. You will see all private messages.");
+        messages.put("spyDmDisabled", "&aSpy &cdm &adisabled.");
+        messages.put("spyDmDisabledConfig", "&cDM spy is disabled in config.");
+        messages.put("spyCommandEnabled", "&aSpy &2command &aenabled. You will see all commands.");
+        messages.put("spyCommandDisabled", "&aSpy &ccommand &adisabled.");
+        messages.put("spyCommandDisabledConfig", "&cCommand spy is disabled in config.");
+
         // ==================== REPAIR ====================
         messages.put("repairSuccess", "&aRepaired the item in your hand.");
         messages.put("repairAllSuccess", "&aRepaired &e{count} &aitems.");
@@ -1970,7 +1987,54 @@ public class PluginConfig {
          */
         public boolean requireFormattingPermission = false;
     }
-    
+
+    // ==================== SPY ====================
+
+    public static class SpyConfig {
+        /** Enable/disable the /spy command and all spy functionality */
+        public boolean enabled = true;
+
+        /**
+         * Enable group chat spy mode.
+         * When enabled, admins can use /spy gchat to see messages from
+         * group chat channels they don't belong to.
+         */
+        public boolean gchatSpyEnabled = true;
+
+        /**
+         * Enable DM spy mode.
+         * When enabled, admins can use /spy dm to see all private messages
+         * between players (/msg, /reply).
+         */
+        public boolean dmSpyEnabled = true;
+
+        /**
+         * Enable command spy mode.
+         * When enabled, admins can use /spy command to see all commands
+         * executed by other players.
+         */
+        public boolean commandSpyEnabled = true;
+
+        /**
+         * Format for DM spy messages shown to admins.
+         * 
+         * Placeholders:
+         * - {sender} - Message sender's name
+         * - {receiver} - Message receiver's name
+         * - {message} - The private message
+         */
+        public String dmSpyFormat = "&8[DM-SPY] &7{sender} -> {receiver}: {message}";
+
+        /**
+         * Format for command spy messages shown to admins.
+         * 
+         * Placeholders:
+         * - {player} - Player who executed the command
+         * - {command} - The full command string
+         */
+        public String commandSpyFormat = "&8[CMD-SPY] &7{player}: /{command}";
+    }
+
     // ==================== GREETINGS ====================
 
     public static class GreetingsConfig {

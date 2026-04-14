@@ -9,6 +9,7 @@ import com.eliteessentials.integration.LuckPermsIntegration;
 import com.eliteessentials.integration.PAPIIntegration;
 import com.eliteessentials.integration.VaultUnlockedIntegration;
 import com.eliteessentials.listeners.ChatListener;
+import com.eliteessentials.listeners.CommandSpyListener;
 import com.eliteessentials.listeners.ConnectListener;
 import com.eliteessentials.listeners.JoinQuitListener;
 import com.eliteessentials.listeners.RespawnListener;
@@ -31,6 +32,7 @@ import com.eliteessentials.services.MailService;
 import com.eliteessentials.services.MessageService;
 import com.eliteessentials.services.NickService;
 import com.eliteessentials.services.MuteService;
+import com.eliteessentials.services.SpyService;
 import com.eliteessentials.services.BanService;
 import com.eliteessentials.services.TempBanService;
 import com.eliteessentials.services.IpBanService;
@@ -137,6 +139,7 @@ public class EliteEssentials extends JavaPlugin {
     private WarnService warnService;
     private ActivityLogService activityLogService;
     private NickService nickService;
+    private SpyService spyService;
     private GreetingStorage greetingStorage;
     private GreetingService greetingService;
     private HytaleFlyCommand flyCommand;
@@ -299,6 +302,10 @@ public class EliteEssentials extends JavaPlugin {
         groupChatService.setIgnoreService(ignoreService);
         groupChatService.setNickService(nickService);
 
+        // Initialize spy service (centralized spy for gchat, dm, command)
+        spyService = new SpyService(configManager);
+        groupChatService.setSpyService(spyService);
+
         tabListService = new TabListService(configManager);
         tabListService.setAfkService(afkService);
         tabListService.setNickService(nickService);
@@ -398,6 +405,12 @@ public class EliteEssentials extends JavaPlugin {
         connectListener.setFreezeService(freezeService);
         connectListener.registerEvents(getEventRegistry());
         getLogger().at(Level.INFO).log("Connect listener registered (ban/freeze enforcement).");
+
+        // Command spy listener (intercepts chat events for command spy)
+        if (configManager.getConfig().spy.enabled && configManager.getConfig().spy.commandSpyEnabled) {
+            CommandSpyListener commandSpyListener = new CommandSpyListener(spyService);
+            commandSpyListener.registerEvents(getEventRegistry());
+        }
         
         // Start freeze enforcement loop (continuously re-applies freeze to prevent engine resets)
         if (configManager.getConfig().freeze.enabled) {
@@ -701,9 +714,14 @@ public class EliteEssentials extends JavaPlugin {
         if (config.groupChat.enabled) {
             getCommandRegistry().registerCommand(new HytaleGroupChatCommand(groupChatService, configManager, muteService, playerService));
             getCommandRegistry().registerCommand(new HytaleChatsCommand(groupChatService, configManager));
-            getCommandRegistry().registerCommand(new HytaleGcSpyCommand(groupChatService, configManager));
             getCommandRegistry().registerCommand(new HytaleGcSetCommand(groupChatService, playerService, configManager));
-            registeredCommands.append("/gc, /g, /chats, /gcspy, /gcset, ");
+            registeredCommands.append("/gc, /g, /chats, /gcset, ");
+        }
+
+        // Spy command (unified: gchat, dm, command spy)
+        if (config.spy.enabled) {
+            getCommandRegistry().registerCommand(new HytaleSpyCommand(spyService, configManager));
+            registeredCommands.append("/spy, ");
         }
         
         // Send message command (admin - works from console)
@@ -1070,6 +1088,10 @@ public class EliteEssentials extends JavaPlugin {
     
     public NickService getNickService() {
         return nickService;
+    }
+
+    public SpyService getSpyService() {
+        return spyService;
     }
     
     public GreetingService getGreetingService() {

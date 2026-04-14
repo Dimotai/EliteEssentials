@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.0.6 - 2026-04-13
+
+### Added
+* **Unified `/spy` command** - new `/spy` command that consolidates all staff monitoring into one place with three independently toggleable modes:
+  * `/spy gchat` - toggle group chat spy (see messages from channels you don't belong to). Replaces the old `/gcspy` command
+  * `/spy dm` - toggle DM spy (see all `/msg` and `/reply` private messages between players)
+  * `/spy command` - toggle command spy (see all commands executed by other players)
+  * `/spy` with no arguments shows your current spy status and usage help
+  * Each mode can be enabled/disabled independently in config under the new `spy` section (`spy.enabled`, `spy.gchatSpyEnabled`, `spy.dmSpyEnabled`, `spy.commandSpyEnabled`)
+  * Spy message formats are configurable: `spy.dmSpyFormat` (placeholders: `{sender}`, `{receiver}`, `{message}`) and `spy.commandSpyFormat` (placeholders: `{player}`, `{command}`). Group chat spy format remains in `groupChat.spyFormat`
+  * `/gcspy` still works as an alias for `/spy gchat` for backward compatibility
+  * 13 new configurable messages in `messages.json` (all prefixed with `spy`)
+  * **Permission:** `eliteessentials.admin.spy` (Admin in simple mode; grant via LuckPerms in advanced mode)
+  * Spy state is cleaned up automatically on player disconnect
+
+## 2.0.5 - 2026-04-13
+
+### Fixed
+* **Vanish rapid toggle still corrupting ECS archetype** - the PR #59 `toggleInProgress` guard released in a `finally` block before the deferred `world.execute()` Invulnerable mutation ran, so two `/v` commands fired within one second could both return and then race on the world thread, corrupting the ECS archetype and nulling the Player component. Confirmed in production: a player executed `/v` twice in 1 second and caused a cascade of 3,414 NullPointerExceptions in `GamePacketHandler` over 90 seconds on the world tick thread. The toggle guard is now held for the full lifetime of the toggle including the deferred `world.execute()` mutation, using a `guardRelease` callback threaded through to the lambda's `finally` block with `AtomicBoolean` for exactly-once release. A 500ms per-player cooldown also rejects back-to-back toggles before they reach the guard as defense in depth. `onPlayerLeave` now clears both the toggle guard and cooldown for the disconnecting player so leaked state cannot poison future reconnects. Thanks to [Dimotai](https://github.com/Dimotai) for identifying and fixing this (PR #60)
+
 ## 2.0.4 - 2026-04-05
 
 ### Fixed

@@ -5,6 +5,7 @@ import com.eliteessentials.EliteEssentials;
 import com.eliteessentials.permissions.Permissions;
 import com.eliteessentials.services.MessageService;
 import com.eliteessentials.services.NickService;
+import com.eliteessentials.services.SpyService;
 import com.eliteessentials.util.CommandPermissionUtil;
 import com.eliteessentials.util.MessageFormatter;
 import com.eliteessentials.util.PlayerSuggestionProvider;
@@ -148,6 +149,12 @@ public class HytaleMsgCommand extends AbstractPlayerCommand {
         // Broadcast to console if enabled (use real names for logging)
         if (configManager.getConfig().msg.broadcastToConsole) {
             logger.info("[MSG] " + sender.getUsername() + " -> " + target.getUsername() + ": " + message);
+        }
+
+        // Notify DM spies
+        SpyService spyService = EliteEssentials.getInstance().getSpyService();
+        if (spyService != null) {
+            spyService.notifyDmSpy(sender.getUuid(), target.getUuid(), senderName, targetName, message);
         }
     }
 

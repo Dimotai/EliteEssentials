@@ -12,6 +12,7 @@ import com.eliteessentials.services.NickService;
 import com.eliteessentials.services.PlayerService;
 import com.eliteessentials.services.IpBanService;
 import com.eliteessentials.services.PlayTimeRewardService;
+import com.eliteessentials.services.SpyService;
 import com.eliteessentials.storage.MotdStorage;
 import com.eliteessentials.storage.PlayerStorageProvider;
 import com.eliteessentials.storage.SpawnStorage;
@@ -603,6 +604,12 @@ public class JoinQuitListener {
 
         // Update player cache (last seen, play time)
         playerService.onPlayerQuit(playerId);
+
+        // Clean up spy state
+        SpyService spyService = EliteEssentials.getInstance().getSpyService();
+        if (spyService != null) {
+            spyService.removePlayer(playerId);
+        }
 
         // Check if player was vanished before cleaning up vanish state
         boolean wasVanished = false;

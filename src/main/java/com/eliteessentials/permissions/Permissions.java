@@ -295,6 +295,7 @@ public final class Permissions {
     public static final String ADMIN_ECONOMY = ADMIN_BASE + ".economy";
     public static final String ADMIN_TELEPORT = ADMIN_BASE + ".teleport";
     public static final String ADMIN_PLAYERDATA = ADMIN_BASE + ".playerdata";
+    public static final String SPY = ADMIN_BASE + ".spy";
 
     // ==================== ECONOMY CATEGORY ====================
     // eliteessentials.command.economy.*

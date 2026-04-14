@@ -21,7 +21,6 @@ import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 /**
@@ -51,13 +50,11 @@ public class GroupChatService {
     private final ConfigManager configManager;
     private final Object fileLock = new Object();
     
-    /** Players currently spying on all group chat channels */
-    private final Set<UUID> spyingPlayers = ConcurrentHashMap.newKeySet();
-    
     private List<GroupChat> groupChats = new ArrayList<>();
     private MuteService muteService;
     private IgnoreService ignoreService;
     private NickService nickService;
+    private SpyService spyService;
     
     public GroupChatService(File dataFolder, ConfigManager configManager) {
         this.dataFolder = dataFolder;
@@ -75,6 +72,10 @@ public class GroupChatService {
 
     public void setNickService(NickService nickService) {
         this.nickService = nickService;
+    }
+
+    public void setSpyService(SpyService spyService) {
+        this.spyService = spyService;
     }
     
     /**
@@ -315,7 +316,7 @@ public class GroupChatService {
         
         // Build spy message for admins not in the channel
         Message spyMessage = null;
-        if (gcConfig.allowSpy && !spyingPlayers.isEmpty()) {
+        if (gcConfig.allowSpy && spyService != null && spyService.hasGchatSpies()) {
             String spyFormat = gcConfig.spyFormat
                     .replace("{channel}", groupChat.getGroupName())
                     .replace("{player}", senderDisplayName)
@@ -374,7 +375,7 @@ public class GroupChatService {
                                     continue;
                                 }
                                 recipients.add(player);
-                            } else if (spyMessage != null && isSpying(player.getUuid())) {
+                            } else if (spyMessage != null && spyService != null && spyService.isGchatSpying(player.getUuid())) {
                                 // Player doesn't have access but is spying
                                 spyRecipients.add(player);
                             }
@@ -481,30 +482,35 @@ public class GroupChatService {
     
     /**
      * Toggle spy mode for a player.
+     * @deprecated Use SpyService.toggleGchatSpy() directly. Kept for backward compatibility.
      * @return true if spy is now enabled, false if disabled
      */
+    @Deprecated
     public boolean toggleSpy(UUID playerId) {
-        if (spyingPlayers.contains(playerId)) {
-            spyingPlayers.remove(playerId);
-            return false;
-        } else {
-            spyingPlayers.add(playerId);
-            return true;
+        if (spyService != null) {
+            return spyService.toggleGchatSpy(playerId);
         }
+        return false;
     }
     
     /**
      * Check if a player is currently spying on group chats.
+     * @deprecated Use SpyService.isGchatSpying() directly. Kept for backward compatibility.
      */
+    @Deprecated
     public boolean isSpying(UUID playerId) {
-        return spyingPlayers.contains(playerId);
+        return spyService != null && spyService.isGchatSpying(playerId);
     }
     
     /**
      * Remove a player from spy mode (e.g., on disconnect).
+     * @deprecated Use SpyService.removePlayer() directly. Kept for backward compatibility.
      */
+    @Deprecated
     public void removeSpy(UUID playerId) {
-        spyingPlayers.remove(playerId);
+        if (spyService != null) {
+            spyService.removeGchatSpy(playerId);
+        }
     }
     
     // ==================== CHAT FORMAT HELPERS ====================
